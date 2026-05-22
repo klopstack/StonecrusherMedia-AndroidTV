@@ -218,6 +218,16 @@ fun SettingsPlaybackAdvancedScreen() {
 		}
 
 		item {
+			var maxAudioChannels by rememberPreference(userPreferences, UserPreferences.maxAudioChannels)
+
+			ListButton(
+				headingContent = { Text(stringResource(R.string.pref_max_audio_channels_title)) },
+				captionContent = { Text(stringResource(maxAudioChannels.nameRes)) },
+				onClick = { router.push(Routes.PLAYBACK_MAX_AUDIO_CHANNELS) }
+			)
+		}
+
+		item {
 			var liveTvDirectPlayEnabled by rememberPreference(userPreferences, UserPreferences.liveTvDirectPlayEnabled)
 
 			ListButton(

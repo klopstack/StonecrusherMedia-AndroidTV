@@ -54,6 +54,7 @@ import org.jellyfin.androidtv.ui.settings.screen.moonfin.SettingsMoonfinThemeMus
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackAdvancedScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackAudioBehaviorScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackInactivityPromptScreen
+import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackMaxAudioChannelsScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackMaxBitrateScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackPlayerScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackPrerollsScreen
@@ -120,6 +121,7 @@ object Routes {
 	const val PLAYBACK_REFRESH_RATE_SWITCHING_BEHAVIOR = "/playback/refresh-rate-switching-behavior"
 	const val PLAYBACK_ZOOM_MODE = "/playback/zoom-mode"
 	const val PLAYBACK_AUDIO_BEHAVIOR = "/playback/audio-behavior"
+	const val PLAYBACK_MAX_AUDIO_CHANNELS = "/playback/max-audio-channels"
 	const val JELLYSEERR = "/jellyseerr"
 	const val JELLYSEERR_ROWS = "/jellyseerr/rows"
 	const val MOONFIN = "/moonfin"
@@ -234,7 +236,7 @@ val routes = mapOf<String, RouteComposable>(
 		val displayPreferencesId = context.parameters["displayPreferencesId"]
 		val serverId = context.parameters["serverId"]?.toUUIDOrNull()
 		val userId = context.parameters["userId"]?.toUUIDOrNull()
-		
+
 		if (itemId != null && displayPreferencesId != null && serverId != null && userId != null) {
 			SettingsLibrariesDisplayScreen(
 				itemId = itemId,
@@ -249,7 +251,7 @@ val routes = mapOf<String, RouteComposable>(
 		val displayPreferencesId = context.parameters["displayPreferencesId"]
 		val serverId = context.parameters["serverId"]?.toUUIDOrNull()
 		val userId = context.parameters["userId"]?.toUUIDOrNull()
-		
+
 		if (itemId != null && displayPreferencesId != null && serverId != null && userId != null) {
 			SettingsLibrariesDisplayImageSizeScreen(
 				itemId = itemId,
@@ -264,7 +266,7 @@ val routes = mapOf<String, RouteComposable>(
 		val displayPreferencesId = context.parameters["displayPreferencesId"]
 		val serverId = context.parameters["serverId"]?.toUUIDOrNull()
 		val userId = context.parameters["userId"]?.toUUIDOrNull()
-		
+
 		if (itemId != null && displayPreferencesId != null && serverId != null && userId != null) {
 			SettingsLibrariesDisplayImageTypeScreen(
 				itemId = itemId,
@@ -279,7 +281,7 @@ val routes = mapOf<String, RouteComposable>(
 		val displayPreferencesId = context.parameters["displayPreferencesId"]
 		val serverId = context.parameters["serverId"]?.toUUIDOrNull()
 		val userId = context.parameters["userId"]?.toUUIDOrNull()
-		
+
 		if (itemId != null && displayPreferencesId != null && serverId != null && userId != null) {
 			SettingsLibrariesDisplayGridScreen(
 				itemId = itemId,
@@ -351,6 +353,9 @@ val routes = mapOf<String, RouteComposable>(
 	},
 	Routes.PLAYBACK_AUDIO_BEHAVIOR to {
 		SettingsPlaybackAudioBehaviorScreen()
+	},
+	Routes.PLAYBACK_MAX_AUDIO_CHANNELS to {
+		SettingsPlaybackMaxAudioChannelsScreen()
 	},
 	Routes.JELLYSEERR to {
 		SettingsJellyseerrScreen()

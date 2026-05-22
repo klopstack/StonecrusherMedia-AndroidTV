@@ -6,6 +6,7 @@ import org.jellyfin.androidtv.preference.UserPreferences.Companion.screensaverIn
 import org.jellyfin.androidtv.preference.constant.AppTheme
 import org.jellyfin.androidtv.preference.constant.AudioBehavior
 import org.jellyfin.androidtv.preference.constant.ClockBehavior
+import org.jellyfin.androidtv.preference.constant.MaxAudioChannels
 import org.jellyfin.androidtv.preference.constant.NextUpBehavior
 import org.jellyfin.androidtv.preference.constant.RatingType
 import org.jellyfin.androidtv.preference.constant.RefreshRateSwitchingBehavior
@@ -210,9 +211,11 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 		var audioNightMode = enumPreference("audio_night_mode", false)
 
 		/**
-		 * Enable AC3
-		 */
-		var ac3Enabled = booleanPreference("pref_bitstream_ac3", true)
+                 * Maximum number of audio channels for playback.
+                 */
+                var maxAudioChannels = enumPreference("max_audio_channels", MaxAudioChannels.AUTO)
+
+                /**
 
 		/* Live TV */
 		/**
@@ -400,7 +403,7 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 				val dimmingLevel = if (wasEnabled) 50 else 0
 				putInt(screensaverDimmingLevel.key, dimmingLevel)
 				remove(oldDimmingKey)
-				
+
 				// Migrate mediaBarOverlayOpacity from String to Int
 				val overlayKey = "mediaBarOverlayOpacity"
 				if (prefs.contains(overlayKey)) {

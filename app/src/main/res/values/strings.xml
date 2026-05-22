@@ -8,6 +8,12 @@
     <string name="byletter_letters">ABCDEFGHIJKLMNOPQRSTUVWXYZ</string>
     <string name="pref_playback">Playback</string>
     <string name="pref_max_bitrate_title">Max streaming bitrate</string>
+    <string name="pref_max_audio_channels_title">Max audio channels</string>
+    <string name="pref_max_audio_channels_description">Limit the number of audio channels for playback. Useful if your audio system does not support all channels.</string>
+    <string name="max_audio_channels_auto">Auto (up to 8 channels)</string>
+    <string name="max_audio_channels_2">2 channels (Stereo)</string>
+    <string name="max_audio_channels_6">6 channels (5.1 Surround)</string>
+    <string name="max_audio_channels_8">8 channels (7.1 Surround)</string>
     <string name="settings_title">Preferences</string>
     <string name="pref_authentication_cat">Authentication</string>
     <string name="chapters">Chapters</string>
@@ -504,7 +510,7 @@
     <string name="pref_libraries_description">Change how libraries are displayed</string>
     <string name="lbl_hide_from_navbar">Hide from navigation</string>
     <string name="lbl_hide_from_navbar_description">Hide this library from the home screen navigation</string>
-    
+
     <!-- Home rows image type preferences -->
     <string name="pref_home_rows_image_type">Home Rows Image Type</string>
     <string name="pref_universal_override">Universal Override</string>
@@ -712,7 +718,7 @@
         <item quantity="one">%1$s album</item>
         <item quantity="other">%1$s albums</item>
     </plurals>
-    
+
     <!-- Media Bar Slideshow -->
     <string name="pref_media_bar_title">Media Bar</string>
     <string name="pref_media_bar_enable">Enable Media Bar slideshow on home screen</string>
@@ -750,7 +756,7 @@
     <string name="lbl_media_bar_next">Next slide</string>
     <string name="lbl_media_bar_pause">Pause slideshow</string>
     <string name="lbl_media_bar_play">Resume slideshow</string>
-    
+
     <!-- Theme Music Settings -->
     <string name="pref_theme_music_title">Theme Music</string>
     <string name="pref_theme_music_enable">Enable theme music</string>
@@ -759,7 +765,7 @@
     <string name="pref_theme_music_volume_summary">Adjust the volume level for background theme music (default: 30%)</string>
     <string name="pref_theme_music_on_home_rows">Play on home rows</string>
     <string name="pref_theme_music_on_home_rows_summary">Play theme music when focusing on items in home rows</string>
-    
+
     <!-- Jellyseerr Settings -->
     <string name="jellyseerr">Jellyseerr</string>
     <string name="home">Home</string>
@@ -797,7 +803,7 @@
     <string name="moonfin_settings_description">Customize Moonfin-specific features</string>
     <string name="moonfin_general_settings">General</string>
     <string name="settings_available_after_login">Settings available after login</string>
-    
+
     <!-- Jellyseerr Authentication -->
     <string name="jellyseerr_auth_method">Authentication Method</string>
     <string name="jellyseerr_auth_method_description">Choose how to authenticate with Jellyseerr</string>
@@ -818,7 +824,7 @@
     <string name="jellyseerr_api_key_absent">Using cookie-based auth (expires in ~30 days)</string>
     <string name="jellyseerr_login_local">Login with Local Account</string>
     <string name="jellyseerr_login_local_description">Authenticate using email and password to get permanent API key</string>
-    
+
     <!-- Jellyseerr Advanced Settings -->
     <string name="jellyseerr_advanced_settings">Advanced Request Settings</string>
     <string name="jellyseerr_advanced_settings_description">Configure custom quality profiles, root folders, and servers for requests</string>
@@ -834,7 +840,7 @@
     <string name="jellyseerr_profile_loading">Loading profiles…</string>
     <string name="jellyseerr_profile_error">Unable to load profiles. Check connection.</string>
     <string name="jellyseerr_profile_admin_required">Admin permissions required to configure quality profiles</string>
-    
+
     <!-- Jellyseerr Row Configuration -->
     <string name="jellyseerr_rows_title">Discover Rows</string>
     <string name="jellyseerr_rows_description">Enable, disable, and reorder rows on the Jellyseerr discover screen</string>
@@ -849,10 +855,10 @@
     <string name="jellyseerr_row_series_genres">Series Genres</string>
     <string name="jellyseerr_row_upcoming_series">Upcoming Series</string>
     <string name="jellyseerr_row_networks">Networks</string>
-    
+
     <string name="enabled">Enabled</string>
     <string name="disabled">Disabled</string>
-    
+
     <!-- Appearance Settings -->
     <string name="pref_appearance">Appearance</string>
     <string name="pref_visual_settings">Visual Settings</string>
@@ -867,7 +873,7 @@
     <string name="pref_blur_medium">Med</string>
     <string name="pref_blur_strong">High</string>
     <string name="pref_blur_extra_strong">Extra</string>
-    
+
     <!-- Toolbar Customization -->
     <string name="pref_toolbar_customization">Toolbar Customization</string>
     <string name="pref_navbar_position">Navigation Bar Position</string>
@@ -890,7 +896,7 @@
     <string name="pref_shuffle_movies">Movies only</string>
     <string name="pref_shuffle_tv">TV shows only</string>
     <string name="pref_shuffle_both">Movies and TV shows</string>
-    
+
     <!-- Update Checker -->
     <string name="pref_updates_title">App Updates</string>
     <string name="pref_updates_info">Version Information</string>
@@ -922,7 +928,7 @@
     <string name="notification_channel_updates_description">Notifications about app updates</string>
     <string name="notification_update_available_title">Update Available</string>
     <string name="notification_update_available_text">Version %s is available. Tap to update.</string>
-    
+
     <!-- Parental Controls -->
     <string name="pref_parental_controls">Parental Controls</string>
     <string name="pref_parental_controls_description">Hide content based on rating</string>
@@ -933,7 +939,7 @@
     <string name="pref_parental_controls_rating_allowed">Allowed</string>
     <string name="pref_parental_controls_category_info">Information</string>
     <string name="pref_parental_controls_info_description">Selected ratings will be hidden from home rows, libraries, search, and media bar across all servers</string>
-    
+
     <!-- Seasonal Surprise -->
     <string name="pref_seasonal_surprise">Seasonal Surprise</string>
     <string name="pref_seasonal_surprise_description">Decorative seasonal animations on home screen. Disable if experiencing lag.</string>
@@ -943,7 +949,7 @@
     <string name="pref_seasonal_summer">Summer ☀️</string>
     <string name="pref_seasonal_halloween">Halloween 🎃</string>
     <string name="pref_seasonal_fall">Fall 🍁</string>
-    
+
     <!-- SyncPlay Settings -->
     <string name="pref_syncplay">SyncPlay</string>
     <string name="pref_syncplay_settings">SyncPlay Settings</string>
@@ -1000,7 +1006,7 @@
     <string name="syncplay_user_joined">%s joined the SyncPlay group</string>
     <string name="syncplay_user_left">%s left the SyncPlay group</string>
     <string name="syncplay_group_default_name">%s\'s Group</string>
-    
+
     <!-- Genres Grid -->
     <string name="all_libraries">All Libraries</string>
     <string name="no_genres_found">No genres found</string>
