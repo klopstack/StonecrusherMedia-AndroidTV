@@ -62,6 +62,11 @@ interface NavigationRepository {
 	 * Reset navigation to the initial destination or a specific [Destination.Fragment] without clearing history.
 	 */
 	fun reset(destination: Destination.Fragment? = null) = reset(destination, false)
+
+	/**
+	 * Clear the last emitted action so lifecycle restarts do not re-apply it.
+	 */
+	fun consumeAction()
 }
 
 class NavigationRepositoryImpl(
@@ -103,6 +108,10 @@ class NavigationRepositoryImpl(
 		val actualDestination = destination ?: defaultDestination
 		_currentAction.tryEmit(NavigationAction.NavigateFragment(actualDestination, true, false, clearHistory))
 		Timber.i("Navigating to $actualDestination (via reset, clearHistory=$clearHistory)")
+	}
+
+	override fun consumeAction() {
+		_currentAction.tryEmit(NavigationAction.Nothing)
 	}
 }
 

@@ -71,6 +71,11 @@ class DestinationFragmentView @JvmOverloads constructor(
 	private val history = Stack<HistoryEntry>()
 
 	fun navigate(action: NavigationAction.NavigateFragment) {
+		if (!action.clear && isShowingDestination(action)) {
+			Timber.d("Skipping redundant navigation to ${action.destination.fragment.java.simpleName}")
+			return
+		}
+
 		val entry = HistoryEntry(action.destination.fragment.java, action.destination.arguments)
 
 		// Create the base transaction so we can mutate everything at once
@@ -114,6 +119,22 @@ class DestinationFragmentView @JvmOverloads constructor(
 		activateHistoryEntry(entry, transaction)
 
 		return true
+	}
+
+	private fun isShowingDestination(action: NavigationAction.NavigateFragment): Boolean {
+		if (history.isEmpty()) return false
+
+		val top = history.peek()
+		val fragment = top.fragment ?: fragmentManager.findFragmentByTag(FRAGMENT_TAG_CONTENT)
+		if (fragment == null || !fragment.isAdded || fragment.isDetached) return false
+
+		return top.name == action.destination.fragment.java &&
+			bundleContentsEqual(top.arguments, action.destination.arguments)
+	}
+
+	private fun bundleContentsEqual(a: Bundle, b: Bundle): Boolean {
+		if (a.size() != b.size()) return false
+		return a.keySet().all { key -> a.get(key) == b.get(key) }
 	}
 
 	private fun saveCurrentFragmentState() {

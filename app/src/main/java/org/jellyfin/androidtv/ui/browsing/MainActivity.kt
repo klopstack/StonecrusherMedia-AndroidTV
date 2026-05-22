@@ -105,7 +105,11 @@ class MainActivity : FragmentActivity() {
 		navigationRepository.currentAction
 			.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
 			.onEach { action ->
+				if (action == NavigationAction.Nothing) return@onEach
+
 				handleNavigationAction(action)
+				navigationRepository.consumeAction()
+
 				// Always enable back callback to handle exit confirmation
 				backPressedCallback.isEnabled = true
 				interactionTrackerViewModel.notifyInteraction(canCancel = false, userInitiated = false)
