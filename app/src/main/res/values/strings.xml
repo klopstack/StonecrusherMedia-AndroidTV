@@ -848,8 +848,6 @@
     <string name="pref_theme_music_on_home_rows">Play on home rows</string>
     <string name="pref_theme_music_on_home_rows_summary">Play theme music when focusing on items in home rows</string>
 
-    <!-- Jellyseerr Settings -->
-    <string name="jellyseerr">Jellyseerr</string>
     <!-- Seerr Settings -->
     <string name="jellyseerr">Seerr</string>
     <string name="home">Home</string>
@@ -926,7 +924,6 @@
     <string name="jellyseerr_login_local_description">Authenticate using email and password to get permanent API key</string>
 
     <!-- Jellyseerr Advanced Settings -->
-    <string name="jellyseerr_login_local_description">Authenticate using email and password</string>
     <string name="jellyseerr_login_api_key">Login with API Key</string>
     <string name="jellyseerr_login_api_key_description">Use a permanent API key from Seerr settings</string>
     <string name="jellyseerr_api_key_input">API Key</string>
