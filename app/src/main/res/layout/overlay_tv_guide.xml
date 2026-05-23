@@ -12,56 +12,46 @@
         android:scaleType="center"
         android:alpha=".6" />
 
-    <org.jellyfin.androidtv.ui.ObservableScrollView
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/channel_list"
         android:layout_width="160sp"
         android:layout_height="match_parent"
-        android:id="@+id/channelScroller"
         android:layout_gravity="top|start|center"
         android:background="@color/channel_scroller_bg"
         android:layout_marginTop="305dp"
+        android:layout_marginBottom="20sp"
         android:focusable="false"
         android:focusableInTouchMode="false"
-        android:layout_marginBottom="20sp">
+        android:clipToPadding="false" />
 
-        <LinearLayout
-            android:orientation="vertical"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:focusable="false"
-            android:focusableInTouchMode="false"
-            android:id="@+id/channels"/>
-    </org.jellyfin.androidtv.ui.ObservableScrollView>
-
-    <org.jellyfin.androidtv.ui.ObservableScrollView
+    <org.jellyfin.androidtv.ui.ObservableHorizontalScrollView
+        android:id="@+id/program_h_scroller"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/programVScroller"
         android:background="@color/program_scroller_bg"
-        android:layout_alignTop="@+id/channelScroller"
-        android:layout_toEndOf="@+id/channelScroller"
-        android:layout_alignBottom="@+id/channelScroller">
+        android:layout_alignTop="@+id/channel_list"
+        android:layout_toEndOf="@+id/channel_list"
+        android:layout_alignBottom="@+id/channel_list"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:scrollbars="none">
 
-        <org.jellyfin.androidtv.ui.ObservableHorizontalScrollView
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/program_list"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/programHScroller" >
-
-            <LinearLayout
-                android:orientation="vertical"
-                android:layout_width="fill_parent"
-                android:layout_height="fill_parent"
-                android:id="@+id/programRows">
-
-            </LinearLayout>
-        </org.jellyfin.androidtv.ui.ObservableHorizontalScrollView>
-    </org.jellyfin.androidtv.ui.ObservableScrollView>
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:focusableInTouchMode="false"
+            android:nestedScrollingEnabled="false"
+            android:clipToPadding="false" />
+    </org.jellyfin.androidtv.ui.ObservableHorizontalScrollView>
 
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="30sp"
         android:id="@+id/timelineHScroller"
-        android:layout_above="@+id/programVScroller"
-        android:layout_toEndOf="@+id/channelScroller"
+        android:layout_above="@+id/program_h_scroller"
+        android:layout_toEndOf="@+id/channel_list"
         android:focusable="false"
         android:background="@color/timeline_bg"
         android:focusableInTouchMode="false">
@@ -79,7 +69,7 @@
         android:layout_height="30sp"
         android:text="Medium Text"
         android:id="@+id/displayDate"
-        android:layout_above="@+id/programVScroller"
+        android:layout_above="@+id/program_h_scroller"
         android:layout_toStartOf="@+id/timelineHScroller"
         android:background="@color/timeline_bg"
         android:gravity="center"
@@ -154,9 +144,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:id="@+id/filterStatus"
-        android:layout_alignEnd="@+id/programVScroller"
+        android:layout_alignEnd="@+id/program_h_scroller"
         android:gravity="end"
-        android:layout_alignRight="@+id/programVScroller"
+        android:layout_alignRight="@+id/program_h_scroller"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="2sp"
         android:layout_marginEnd="10sp"

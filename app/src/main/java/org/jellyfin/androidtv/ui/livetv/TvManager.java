@@ -43,6 +43,10 @@ public class TvManager {
     private static List<BaseItemDto> allChannels;
     private static UUID[] channelIds;
     private static HashMap<UUID, ArrayList<BaseItemDto>> mProgramsDict = new HashMap<>();
+    private static final HashMap<UUID, Boolean> mProgramsLoadedChannels = new HashMap<>();
+    private static final HashMap<UUID, Boolean> mProgramsLoadingChannels = new HashMap<>();
+    private static LocalDateTime programsCacheStart;
+    private static LocalDateTime programsCacheEnd;
     private static LocalDateTime needLoadTime;
     private static boolean forceReload;
 
@@ -71,6 +75,34 @@ public class TvManager {
     }
 
     public static boolean shouldForceReload() { return forceReload; }
+
+    public static void clearProgramsCache() {
+        mProgramsDict.clear();
+        mProgramsLoadedChannels.clear();
+        mProgramsLoadingChannels.clear();
+        programsCacheStart = null;
+        programsCacheEnd = null;
+    }
+
+    public static boolean hasProgramsForChannel(UUID channelId) {
+        return mProgramsLoadedChannels.containsKey(channelId);
+    }
+
+    public static boolean isProgramsLoadingForChannel(UUID channelId) {
+        return Boolean.TRUE.equals(mProgramsLoadingChannels.get(channelId));
+    }
+
+    public static void markProgramsLoading(UUID channelId, boolean loading) {
+        if (loading) {
+            mProgramsLoadingChannels.put(channelId, true);
+        } else {
+            mProgramsLoadingChannels.remove(channelId);
+        }
+    }
+
+    public static int getChannelCount() {
+        return allChannels != null ? allChannels.size() : 0;
+    }
 
     public static int getAllChannelsIndex(UUID id) {
         if (allChannels == null) return -1;
@@ -129,30 +161,80 @@ public class TvManager {
 
         TvManagerHelperKt.getPrograms(fragment, Arrays.copyOfRange(channelIds, startNdx, endNdx), startTimeRounded, endTimeRounded, programs -> {
             if (programs != null) {
-                Timber.d("*** About to build dictionary");
-                buildProgramsDict(programs, startTime);
+                Timber.d("*** About to merge programs dictionary");
+                mergeProgramsDict(programs, startTimeRounded, endTimeRounded);
                 Timber.d("*** Programs retrieval finished");
-
-                outerResponse.onResponse();
-            } else {
-                outerResponse.onResponse();
             }
-
+            outerResponse.onResponse();
             return null;
         });
 
         Timber.d("*** About to get programs");
     }
 
-    private static void buildProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime) {
-        mProgramsDict = new HashMap<>();
+    public static void getProgramsForChannelsAsync(
+            Fragment fragment,
+            UUID[] channelIds,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            final EmptyResponse outerResponse
+    ) {
+        if (channelIds == null || channelIds.length == 0) {
+            outerResponse.onResponse();
+            return;
+        }
+
+        LocalDateTime startTimeRounded = startTime.withMinute(startTime.getMinute() >= 30 ? 30 : 0).withSecond(0).withNano(0);
+        LocalDateTime endTimeRounded = endTime.minusSeconds(1);
+
+        TvManagerHelperKt.getPrograms(fragment, channelIds, startTimeRounded, endTimeRounded, programs -> {
+            if (programs != null) {
+                mergeProgramsDict(programs, startTimeRounded, endTimeRounded);
+                for (UUID id : channelIds) {
+                    if (!mProgramsLoadedChannels.containsKey(id)) {
+                        mProgramsDict.put(id, new ArrayList<BaseItemDto>());
+                        mProgramsLoadedChannels.put(id, true);
+                    }
+                    markProgramsLoading(id, false);
+                }
+            } else {
+                for (UUID id : channelIds) {
+                    markProgramsLoading(id, false);
+                }
+            }
+            outerResponse.onResponse();
+            return null;
+        });
+    }
+
+    public static void mergeProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime, LocalDateTime endTime) {
+        if (programsCacheStart == null || startTime.isBefore(programsCacheStart)) {
+            programsCacheStart = startTime;
+        }
+        if (programsCacheEnd == null || endTime.isAfter(programsCacheEnd)) {
+            programsCacheEnd = endTime;
+        }
+        java.util.HashSet<UUID> channelsInBatch = new java.util.HashSet<>();
         for (BaseItemDto program : programs) {
             UUID id = program.getChannelId();
-            if (!mProgramsDict.containsKey(id)) mProgramsDict.put(id, new ArrayList<BaseItemDto>());
-            if (program.getEndDate().isAfter(startTime))
+            if (id == null) continue;
+            if (!channelsInBatch.contains(id)) {
+                mProgramsDict.put(id, new ArrayList<BaseItemDto>());
+                channelsInBatch.add(id);
+            }
+            if (program.getEndDate() != null && program.getEndDate().isAfter(startTime)) {
                 mProgramsDict.get(id).add(program);
+            }
+            mProgramsLoadedChannels.put(id, true);
+            mProgramsLoadingChannels.remove(id);
         }
         needLoadTime = startTime.plusMinutes(29);
+        forceReload = false;
+    }
+
+    private static void buildProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime) {
+        clearProgramsCache();
+        mergeProgramsDict(programs, startTime, programsCacheEnd != null ? programsCacheEnd : startTime.plusHours(9));
     }
 
     public static List<BaseItemDto> getProgramsForChannel(UUID channelId, GuideFilters filters) {
