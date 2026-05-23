@@ -21,6 +21,7 @@ import org.jellyfin.androidtv.data.eventhandling.SocketHandler
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
 import org.jellyfin.androidtv.data.service.jellyseerr.JellyseerrHttpClient
 import org.jellyfin.androidtv.integration.LeanbackChannelWorker
+import org.jellyfin.androidtv.ui.livetv.LiveTvGuidePrefetchWorker
 import org.jellyfin.androidtv.preference.JellyseerrPreferences
 import org.jellyfin.androidtv.telemetry.TelemetryService
 import org.jellyfin.androidtv.ui.background.UpdateCheckWorker
@@ -103,6 +104,8 @@ class StonecrusherApplication : Application(), SingletonImageLoader.Factory {
 						.build()
 				).await()
 			}
+
+			LiveTvGuidePrefetchWorker.schedule(workManager)
 		}
 
 		launch { socketListener.updateSession() }

@@ -27,6 +27,7 @@ import org.jellyfin.androidtv.data.repository.ItemMutationRepositoryImpl
 import org.jellyfin.androidtv.data.repository.JellyseerrRepository
 import org.jellyfin.androidtv.data.repository.JellyseerrRepositoryImpl
 import org.jellyfin.androidtv.data.repository.LocalWatchlistRepository
+import org.jellyfin.androidtv.ui.livetv.GuideProgramRepository
 import org.jellyfin.androidtv.data.repository.MdbListRepository
 import org.jellyfin.androidtv.data.repository.TmdbRepository
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
@@ -184,6 +185,8 @@ val appModule = module {
 	single<MediaSegmentRepository> { MediaSegmentRepositoryImpl(get(), get(), get(), get()) }
 	single<ExternalAppRepository> { ExternalAppRepository(get()) }
 	single { LocalWatchlistRepository(androidContext()) }
+	single { GuideProgramRepository() }
+	single { org.jellyfin.androidtv.data.repository.GuideDiskCache(androidContext()) }
 	single<org.jellyfin.androidtv.data.repository.MultiServerRepository> { 
 		org.jellyfin.androidtv.data.repository.MultiServerRepositoryImpl(get(), get(), get(), get(), get(defaultDeviceInfo), get(), get()) 
 	}

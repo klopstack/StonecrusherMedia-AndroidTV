@@ -34,7 +34,7 @@ class HomeFragmentHelper(
 	fun loadRecentlyAdded(userViews: Collection<BaseItemDto>): HomeFragmentRow {
 		// Check if multi-server is enabled
 		val enableMultiServer = userPreferences[UserPreferences.enableMultiServerLibraries]
-		
+
 		return if (enableMultiServer) {
 			// Use aggregated row that shows items from all servers
 			HomeFragmentAggregatedLatestRow()
@@ -86,7 +86,7 @@ class HomeFragmentHelper(
 	fun loadResumeVideo(): HomeFragmentRow {
 		// Check if multi-server is enabled
 		val enableMultiServer = userPreferences[UserPreferences.enableMultiServerLibraries]
-		
+
 		return if (enableMultiServer) {
 			// Use aggregated row that shows items from all servers
 			HomeFragmentAggregatedResumeRow(HOME_ROW_MAX_ITEMS)
@@ -99,11 +99,11 @@ class HomeFragmentHelper(
 	fun loadMergedContinueWatching(): HomeFragmentRow {
 		// Check if multi-server is enabled
 		val enableMultiServer = userPreferences[UserPreferences.enableMultiServerLibraries]
-		
+
 		if (enableMultiServer) {
 			return HomeFragmentAggregatedResumeRow(HOME_ROW_MAX_ITEMS, includeNextUp = true)
 		}
-		
+
 		// Use normal merged row for current server only
 		val resumeQuery = GetResumeItemsRequest(
 			limit = HOME_ROW_MAX_ITEMS,
@@ -153,12 +153,12 @@ class HomeFragmentHelper(
 	fun loadNextUp(): HomeFragmentRow {
 		// Check if multi-server is enabled
 		val enableMultiServer = userPreferences[UserPreferences.enableMultiServerLibraries]
-		
+
 		if (enableMultiServer) {
 			// Use aggregated row that shows items from all servers
 			return HomeFragmentAggregatedNextUpRow(HOME_ROW_MAX_ITEMS)
 		}
-		
+
 		// Use normal row for current server only
 		val query = GetNextUpRequest(
 			imageTypeLimit = 1,

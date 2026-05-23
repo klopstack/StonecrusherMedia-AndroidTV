@@ -42,13 +42,12 @@ import timber.log.Timber;
 public class TvManager {
     private static List<BaseItemDto> allChannels;
     private static UUID[] channelIds;
-    private static HashMap<UUID, ArrayList<BaseItemDto>> mProgramsDict = new HashMap<>();
-    private static final HashMap<UUID, Boolean> mProgramsLoadedChannels = new HashMap<>();
-    private static final HashMap<UUID, Boolean> mProgramsLoadingChannels = new HashMap<>();
-    private static LocalDateTime programsCacheStart;
-    private static LocalDateTime programsCacheEnd;
     private static LocalDateTime needLoadTime;
     private static boolean forceReload;
+
+    private static GuideProgramRepository programRepository() {
+        return KoinJavaComponent.get(GuideProgramRepository.class);
+    }
 
     public static UUID getLastLiveTvChannel() {
         return Utils.uuidOrNull(KoinJavaComponent.<SystemPreferences>get(SystemPreferences.class).get(SystemPreferences.Companion.getLiveTvLastChannel()));
@@ -76,28 +75,44 @@ public class TvManager {
 
     public static boolean shouldForceReload() { return forceReload; }
 
+    public static void clearForceReload() {
+        forceReload = false;
+    }
+
     public static void clearProgramsCache() {
-        mProgramsDict.clear();
-        mProgramsLoadedChannels.clear();
-        mProgramsLoadingChannels.clear();
-        programsCacheStart = null;
-        programsCacheEnd = null;
+        programRepository().clear();
+    }
+
+    public static GuideProgramRepository getProgramRepository() {
+        return programRepository();
+    }
+
+    public static LocalDateTime getProgramsCacheStart() {
+        return programRepository().getLoadedStart();
+    }
+
+    public static LocalDateTime getProgramsCacheEnd() {
+        return programRepository().getLoadedEnd();
     }
 
     public static boolean hasProgramsForChannel(UUID channelId) {
-        return mProgramsLoadedChannels.containsKey(channelId);
+        return programRepository().hasProgramsForChannel(channelId);
     }
 
     public static boolean isProgramsLoadingForChannel(UUID channelId) {
-        return Boolean.TRUE.equals(mProgramsLoadingChannels.get(channelId));
+        return programRepository().isLoading(channelId);
     }
 
     public static void markProgramsLoading(UUID channelId, boolean loading) {
-        if (loading) {
-            mProgramsLoadingChannels.put(channelId, true);
-        } else {
-            mProgramsLoadingChannels.remove(channelId);
-        }
+        programRepository().markLoading(channelId, loading);
+    }
+
+    public static void evictProgramsOutsideChannels(java.util.Set<UUID> keepChannelIds) {
+        programRepository().evictChannelsOutside(keepChannelIds);
+    }
+
+    public static void evictProgramsBefore(LocalDateTime before) {
+        programRepository().evictTimeBefore(before);
     }
 
     public static int getChannelCount() {
@@ -143,10 +158,10 @@ public class TvManager {
             channelIds = new UUID[allChannels.size()];
             UUID last = getLastLiveTvChannel();
             if (last == null) return ndx;
-            int i = 0;
-            for (BaseItemDto channel : allChannels) {
-                channelIds[i++] = channel.getId();
-                if (channel.getId().equals(last.toString())) ndx = i;
+            for (int i = 0; i < allChannels.size(); i++) {
+                BaseItemDto channel = allChannels.get(i);
+                channelIds[i] = channel.getId();
+                if (channel.getId().equals(last)) ndx = i;
             }
         }
 
@@ -184,19 +199,13 @@ public class TvManager {
             return;
         }
 
-        LocalDateTime startTimeRounded = startTime.withMinute(startTime.getMinute() >= 30 ? 30 : 0).withSecond(0).withNano(0);
+        LocalDateTime startTimeRounded = TvManagerHelperKt.roundProgramTime(startTime);
         LocalDateTime endTimeRounded = endTime.minusSeconds(1);
 
         TvManagerHelperKt.getPrograms(fragment, channelIds, startTimeRounded, endTimeRounded, programs -> {
             if (programs != null) {
-                mergeProgramsDict(programs, startTimeRounded, endTimeRounded);
-                for (UUID id : channelIds) {
-                    if (!mProgramsLoadedChannels.containsKey(id)) {
-                        mProgramsDict.put(id, new ArrayList<BaseItemDto>());
-                        mProgramsLoadedChannels.put(id, true);
-                    }
-                    markProgramsLoading(id, false);
-                }
+                java.util.List<UUID> batchIds = java.util.Arrays.asList(channelIds);
+                programRepository().mergePrograms(programs, startTimeRounded, endTimeRounded, batchIds);
             } else {
                 for (UUID id : channelIds) {
                     markProgramsLoading(id, false);
@@ -208,52 +217,30 @@ public class TvManager {
     }
 
     public static void mergeProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime, LocalDateTime endTime) {
-        if (programsCacheStart == null || startTime.isBefore(programsCacheStart)) {
-            programsCacheStart = startTime;
-        }
-        if (programsCacheEnd == null || endTime.isAfter(programsCacheEnd)) {
-            programsCacheEnd = endTime;
-        }
-        java.util.HashSet<UUID> channelsInBatch = new java.util.HashSet<>();
-        for (BaseItemDto program : programs) {
-            UUID id = program.getChannelId();
-            if (id == null) continue;
-            if (!channelsInBatch.contains(id)) {
-                mProgramsDict.put(id, new ArrayList<BaseItemDto>());
-                channelsInBatch.add(id);
-            }
-            if (program.getEndDate() != null && program.getEndDate().isAfter(startTime)) {
-                mProgramsDict.get(id).add(program);
-            }
-            mProgramsLoadedChannels.put(id, true);
-            mProgramsLoadingChannels.remove(id);
-        }
+        mergeProgramsDict(programs, startTime, endTime, new UUID[0]);
+    }
+
+    public static void mergeProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime, LocalDateTime endTime, UUID[] channelIdsInBatch) {
+        java.util.List<UUID> batchIds = java.util.Arrays.asList(channelIdsInBatch);
+        programRepository().mergePrograms(programs, startTime, endTime, batchIds);
         needLoadTime = startTime.plusMinutes(29);
         forceReload = false;
     }
 
     private static void buildProgramsDict(Collection<BaseItemDto> programs, LocalDateTime startTime) {
         clearProgramsCache();
-        mergeProgramsDict(programs, startTime, programsCacheEnd != null ? programsCacheEnd : startTime.plusHours(9));
+        LocalDateTime endTime = programRepository().getLoadedEnd() != null
+                ? programRepository().getLoadedEnd()
+                : startTime.plusHours(9);
+        mergeProgramsDict(programs, startTime, endTime);
     }
 
     public static List<BaseItemDto> getProgramsForChannel(UUID channelId, GuideFilters filters) {
-        if (!mProgramsDict.containsKey(channelId)) return new ArrayList<>();
-
-        List<BaseItemDto> results = mProgramsDict.get(channelId);
-        boolean passes = filters == null || !filters.any();
-        if (passes) return results;
-
-        // There are filters - check them
-        for (BaseItemDto program : results) {
-            passes |= filters.passesFilter(program);
-        }
-
-        return passes ? results : new ArrayList<BaseItemDto>();
+        return programRepository().getProgramsForChannel(channelId, filters);
     }
 
     public static List<BaseItemDto> getProgramsForChannel(UUID channelId) {
-        return !mProgramsDict.containsKey(channelId) ? new ArrayList<BaseItemDto>() : mProgramsDict.get(channelId);
+        return programRepository().getProgramsForChannel(channelId);
     }
 
     public static void setTimelineRow(Context context, LinearLayout timelineRow, BaseItemDto program) {

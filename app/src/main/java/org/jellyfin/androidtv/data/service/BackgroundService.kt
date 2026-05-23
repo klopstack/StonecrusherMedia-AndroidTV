@@ -1,8 +1,18 @@
 package org.jellyfin.androidtv.data.service
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.os.Build
+import androidx.annotation.ColorInt
+import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.graphics.ImageBitmap
+import org.jellyfin.androidtv.R
 import androidx.compose.ui.graphics.asImageBitmap
 import coil3.ImageLoader
 import coil3.request.ImageRequest
@@ -220,6 +230,105 @@ class BackgroundService(
 			_currentIndex = 0
 			update()
 		}
+	}
+
+	/**
+	 * Use a theme accent color as a blurred gradient background, optionally with a blurred icon overlay.
+	 */
+	fun setBackgroundFromColor(
+		@ColorInt accentColor: Int,
+		@DrawableRes iconRes: Int? = null,
+		blurContext: BlurContext = BlurContext.BROWSING,
+	) {
+		if (!userPreferences[UserPreferences.backdropEnabled])
+			return clearBackgrounds()
+
+		_blurContext.value = blurContext
+		_enabled.value = true
+
+		loadBackgroundsJob?.cancel()
+		loadBackgroundsJob = scope.launch(Dispatchers.IO) {
+			var bitmap = createAccentGradientBitmap(accentColor)
+			if (iconRes != null) {
+				bitmap = compositeBlurredIcon(bitmap, iconRes)
+			}
+
+			val blurAmount = when (blurContext) {
+				BlurContext.DETAILS -> userSettingPreferences[UserSettingPreferences.detailsBackgroundBlurAmount]
+				BlurContext.BROWSING -> userSettingPreferences[UserSettingPreferences.browsingBackgroundBlurAmount]
+				BlurContext.NONE -> 0
+			}
+
+			val imageBitmap = if (!useComposeBlur && blurAmount > 0) {
+				BitmapBlur.blur(bitmap, blurAmount).asImageBitmap()
+			} else {
+				bitmap.asImageBitmap()
+			}
+
+			_backgrounds = listOf(imageBitmap)
+			_currentIndex = 0
+			update()
+		}
+	}
+
+	private fun createAccentGradientBitmap(@ColorInt accentColor: Int): Bitmap {
+		val width = 1280
+		val height = 720
+		val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+		val canvas = Canvas(bitmap)
+
+		val midColor = blendColors(accentColor, ContextCompat.getColor(context, R.color.stonecrusher_soil), 0.55f)
+		val endColor = blendColors(accentColor, ContextCompat.getColor(context, R.color.not_quite_black), 0.8f)
+
+		val gradient = LinearGradient(
+			0f,
+			0f,
+			width.toFloat(),
+			height.toFloat(),
+			intArrayOf(accentColor, midColor, endColor),
+			floatArrayOf(0f, 0.45f, 1f),
+			Shader.TileMode.CLAMP,
+		)
+		canvas.drawPaint(Paint().apply { shader = gradient })
+
+		return bitmap
+	}
+
+	private fun compositeBlurredIcon(gradient: Bitmap, @DrawableRes iconRes: Int): Bitmap {
+		val drawable = ContextCompat.getDrawable(context, iconRes) ?: return gradient
+		val result = gradient.copy(Bitmap.Config.ARGB_8888, true)
+		val canvas = Canvas(result)
+
+		val iconSize = (gradient.width * 0.3f).toInt().coerceAtLeast(160)
+		val iconBitmap = Bitmap.createBitmap(iconSize, iconSize, Bitmap.Config.ARGB_8888)
+		Canvas(iconBitmap).apply {
+			drawable.setBounds(0, 0, iconSize, iconSize)
+			drawable.draw(this)
+		}
+
+		val blurredIcon = BitmapBlur.blur(iconBitmap, 20)
+		if (blurredIcon != iconBitmap) iconBitmap.recycle()
+
+		val left = gradient.width * 0.58f - iconSize / 2f
+		val top = gradient.height * 0.36f - iconSize / 2f
+		canvas.drawBitmap(
+			blurredIcon,
+			left,
+			top,
+			Paint().apply { alpha = 115 },
+		)
+		blurredIcon.recycle()
+
+		return result
+	}
+
+	private fun blendColors(@ColorInt color1: Int, @ColorInt color2: Int, ratio: Float): Int {
+		val inverse = 1f - ratio
+		val a = (Color.alpha(color1) * inverse + Color.alpha(color2) * ratio).toInt().coerceIn(0, 255)
+		val r = (Color.red(color1) * inverse + Color.red(color2) * ratio).toInt().coerceIn(0, 255)
+		val g = (Color.green(color1) * inverse + Color.green(color2) * ratio).toInt().coerceIn(0, 255)
+		val b = (Color.blue(color1) * inverse + Color.blue(color2) * ratio).toInt().coerceIn(0, 255)
+		return Color.argb(a, r, g, b)
 	}
 
 	fun clearBackgrounds() {

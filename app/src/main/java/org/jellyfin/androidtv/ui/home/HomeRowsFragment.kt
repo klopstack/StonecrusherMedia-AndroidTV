@@ -3,6 +3,7 @@ package org.jellyfin.androidtv.ui.home
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.leanback.app.RowsSupportFragment
 import androidx.leanback.widget.ClassPresenterSelector
@@ -34,6 +35,7 @@ import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.constant.CustomMessage
 import org.jellyfin.androidtv.constant.HomeSectionType
+import org.jellyfin.androidtv.constant.LiveTvOption
 import org.jellyfin.androidtv.constant.QueryType
 import org.jellyfin.androidtv.data.model.DataRefreshService
 import org.jellyfin.androidtv.data.repository.CustomMessageRepository
@@ -43,6 +45,7 @@ import org.jellyfin.androidtv.data.service.BackgroundService
 import org.jellyfin.androidtv.data.service.BlurContext
 import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.preference.UserSettingPreferences
+import org.jellyfin.androidtv.ui.GridButton
 import org.jellyfin.androidtv.ui.browsing.CompositeClickedListener
 import org.jellyfin.androidtv.ui.browsing.CompositeSelectedListener
 import org.jellyfin.androidtv.ui.itemhandling.AggregatedItemRowAdapter
@@ -110,7 +113,9 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 	// Special rows
 	private val notificationsRow by lazy { NotificationsHomeFragmentRow(lifecycleScope, notificationsRepository) }
 	private val nowPlaying by lazy { HomeFragmentNowPlayingRow(lifecycleScope, playbackManager, mediaManager) }
-	private val liveTVRow by lazy { HomeFragmentLiveTVRow(requireActivity(), userRepository, navigationRepository) }
+	private val liveTVRow by lazy {
+		HomeFragmentLiveTVRow(requireActivity(), userRepository, navigationRepository, userPreferences)
+	}
 	private val mediaBarRow by lazy { HomeFragmentMediaBarRow(lifecycleScope, mediaBarViewModel) }
 
 	// Store rows for refreshing
@@ -181,11 +186,11 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 			if (userSettingPreferences[UserSettingPreferences.mediaBarEnabled]) {
 				rows.add(mediaBarRow)
 			}
-			
+
 			// Actually add the sections
 			val mergeContinueWatching = userPreferences[UserPreferences.mergeContinueWatchingNextUp]
 			var mergedRowAdded = false
-			
+
 			for (section in homesections) when (section) {
 				HomeSectionType.MEDIA_BAR -> { /* Now handled by separate toggle above */ }
 				HomeSectionType.LATEST_MEDIA -> rows.add(helper.loadRecentlyAdded(cachedViews ?: userViewsRepository.views.first()))
@@ -295,7 +300,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 					.launchIn(this)
 			}
 		}
-		
+
 		// Listen for session/user changes and recreate the fragment with fresh data
 		lifecycleScope.launch {
 			sessionRepository.currentSession
@@ -320,11 +325,11 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
-		
+
 		verticalGridView?.apply {
 			// Reduce item prefetch distance for faster initial load
 			setItemViewCacheSize(20)
-			
+
 			// Intercept DPAD_LEFT before HorizontalGridView consumes it.
 			// HorizontalGridView eats DPAD_LEFT even at position 0, so the only
 			// way to transfer focus to the sidebar is to intercept first.
@@ -345,7 +350,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 				}
 				false
 			}
-			
+
 			// Handle upward navigation from first row to toolbar
 			setOnKeyListener { _, keyCode, event ->
 				if (event.action == android.view.KeyEvent.ACTION_DOWN &&
@@ -396,7 +401,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 			// Re-retrieve rows that have pending change triggers (e.g. Resume, Next Up, Latest)
 			// but don't force-refresh static rows like Views/My Media to avoid resetting selection
 			refreshRows(delayed = true)
-			
+
 			// Reload media bar with fresh random items when returning to home
 			mediaBarViewModel.loadInitialContent()
 		} else {
@@ -408,7 +413,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 		// Update audio queue
 		Timber.i("Updating audio queue in HomeFragment (onResume)")
 		nowPlaying.update(requireContext(), adapter as MutableObjectAdapter<Row>)
-		
+
 		// Ensure focus is restored to the grid when returning from other screens (like search)
 		// This prevents the issue where users can't control the media bar after backing out
 		view?.postDelayed({
@@ -420,7 +425,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 
 	override fun onPause() {
 		super.onPause()
-		
+
 		// Stop theme music immediately when fragment is paused
 		themeMusicPlayer.stop()
 	}
@@ -465,7 +470,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 		super.onDestroy()
 
 		mediaManager.removeAudioEventListener(this)
-		
+
 		// Stop any playing theme music
 		themeMusicPlayer.stop()
 	}
@@ -493,16 +498,45 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 		) {
 			// Update selected position flow immediately (for focus tracking)
 			_selectedPositionFlow.value = selectedPosition
-			
-			if (item !is BaseRowItem) {
+
+			val gridButton = when (item) {
+				is GridButton -> item
+				else -> null
+			}
+
+			if (gridButton != null) {
+				currentItem = null
+				currentRow = row as? ListRow
+
+				selectionDebouncer.debounce {
+					_selectedItemStateFlow.value = SelectedItemState(
+						title = gridButton.text,
+					)
+				}
+
+				backgroundDebouncer.debounce {
+					val colorRes = LiveTvOption.backgroundColorRes(gridButton.id)
+					if (colorRes != null) {
+						backgroundService.setBackgroundFromColor(
+							ContextCompat.getColor(requireContext(), colorRes),
+							LiveTvOption.backgroundIconRes(gridButton.id),
+							BlurContext.BROWSING,
+						)
+					} else {
+						backgroundService.clearBackgrounds()
+					}
+				}
+
+				themeMusicPlayer.cancelDelayedPlay()
+			} else if (item !is BaseRowItem) {
 				currentItem = null
 				// Clear selected item state immediately
 				selectionDebouncer.cancel()
 				_selectedItemStateFlow.value = SelectedItemState.EMPTY
-				
+
 				// Cancel any pending theme music playback
 				themeMusicPlayer.cancelDelayedPlay()
-				
+
 				// Don't clear background if we're on the media bar row - it has its own backdrop
 				if (row !is MediaBarRow) {
 					backgroundService.clearBackgrounds()
@@ -539,7 +573,7 @@ class HomeRowsFragment : RowsSupportFragment(), AudioEventListener, View.OnKeyLi
 						backgroundService.setBackground(baseItem, BlurContext.BROWSING)
 					}
 				}
-				
+
 				// Play theme music on focus if enabled (with delay)
 				item.baseItem?.let { baseItem ->
 					themeMusicPlayer.playThemeMusicOnFocusDelayed(baseItem)

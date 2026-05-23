@@ -13,7 +13,7 @@ import org.jellyfin.androidtv.constant.HomeSectionType
  * Custom serializer for HomeSectionType enum.
  */
 object HomeSectionTypeSerializer : KSerializer<HomeSectionType> {
-	override val descriptor: SerialDescriptor = 
+	override val descriptor: SerialDescriptor =
 		PrimitiveSerialDescriptor("HomeSectionType", PrimitiveKind.STRING)
 
 	override fun serialize(encoder: Encoder, value: HomeSectionType) {
@@ -26,7 +26,7 @@ object HomeSectionTypeSerializer : KSerializer<HomeSectionType> {
 		if (name == "watchlist") {
 			return HomeSectionType.PLAYLISTS
 		}
-		return HomeSectionType.entries.find { it.serializedName == name } 
+		return HomeSectionType.entries.find { it.serializedName == name }
 			?: HomeSectionType.NONE
 	}
 }

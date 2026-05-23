@@ -75,10 +75,24 @@ public class GuideChannelHeader extends RelativeLayout {
     }
 
     @Override
+    public View focusSearch(int direction) {
+        if (direction == View.FOCUS_UP || direction == View.FOCUS_DOWN) {
+            View target = mTvGuide.findVerticalProgramFocusTarget(this, direction);
+            if (target != null) return target;
+        }
+        return super.focusSearch(direction);
+    }
+
+    @Override
     protected void onFocusChanged(boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
 
         if (gainFocus) {
+            if (direction == View.FOCUS_UP || direction == View.FOCUS_DOWN
+                    || direction == View.FOCUS_FORWARD || direction == View.FOCUS_BACKWARD) {
+                mTvGuide.redirectChannelHeaderFocus(this);
+            }
+
             setBackgroundColor(Utils.getThemeColor(mContext, android.R.attr.colorAccent));
 
             mTvGuide.setSelectedProgram(this);

@@ -19,16 +19,16 @@ class GuideProgramViewHolder(val container: FrameLayout) : RecyclerView.ViewHold
 class LiveTvGuideRowsCoordinator(
 	private val guide: LiveTvGuide,
 	private val rowBuilder: LiveTvGuideRowBuilder,
+	private val rowCache: LiveTvGuideRowCache,
 	private val filters: GuideFilters,
 	private var guideStart: LocalDateTime,
 	private var guideEnd: LocalDateTime,
 	private val rowHeightPx: Int,
 	private val onVisibleRangeChanged: (first: Int, last: Int) -> Unit,
+	private val onProgramRowAttached: (position: Int, row: LinearLayout) -> Unit,
 ) {
 	var channelCount: Int = 0
 		private set
-
-	private var previousProgramRow: LinearLayout? = null
 
 	val channelAdapter = ChannelAdapter()
 	val programAdapter = ProgramAdapter()
@@ -39,19 +39,77 @@ class LiveTvGuideRowsCoordinator(
 		programAdapter.notifyDataSetChanged()
 	}
 
-	fun updateGuideRange(start: LocalDateTime, end: LocalDateTime) {
+	fun resetForOpen(start: LocalDateTime, end: LocalDateTime, count: Int, clearRowCache: Boolean) {
 		guideStart = start
 		guideEnd = end
-		previousProgramRow = null
+		rowBuilder.updateGuideRange(start, end)
+		if (clearRowCache) {
+			rowCache.clear()
+		}
+		channelCount = count
 		channelAdapter.notifyDataSetChanged()
 		programAdapter.notifyDataSetChanged()
 	}
 
-	fun notifyProgramsChanged(range: IntRange) {
-		for (i in range) {
-			channelAdapter.notifyItemChanged(i)
+	fun updateGuideRange(start: LocalDateTime, end: LocalDateTime) {
+		guideStart = start
+		guideEnd = end
+		rowBuilder.updateGuideRange(start, end)
+	}
+
+	fun resetGuideRange(start: LocalDateTime, end: LocalDateTime) {
+		guideStart = start
+		guideEnd = end
+		rowBuilder.updateGuideRange(start, end)
+		rowCache.clear()
+		channelAdapter.notifyDataSetChanged()
+		programAdapter.notifyDataSetChanged()
+	}
+
+	fun extendGuideEnd(
+		start: LocalDateTime,
+		end: LocalDateTime,
+		affectedFirst: Int,
+		affectedLast: Int,
+		rowCache: LiveTvGuideRowCache,
+	) {
+		guideStart = start
+		guideEnd = end
+		rowBuilder.updateGuideRange(start, end)
+		if (affectedFirst > affectedLast || channelCount == 0) return
+		val first = affectedFirst.coerceIn(0, channelCount - 1)
+		val last = affectedLast.coerceIn(first, channelCount - 1)
+		val channelIds = (first..last).mapNotNull { TvManager.getChannel(it).id }
+		rowCache.invalidateChannels(channelIds)
+		for (i in first..last) {
 			programAdapter.notifyItemChanged(i)
 		}
+	}
+
+	fun evictChannelsOutside(first: Int, last: Int, radius: Int, rowCache: LiveTvGuideRowCache): List<Int> {
+		if (channelCount == 0) return emptyList()
+		val keepStart = (first - radius).coerceAtLeast(0)
+		val keepEnd = (last + radius).coerceAtMost(channelCount - 1)
+		val keepIds = (keepStart..keepEnd).mapNotNull { TvManager.getChannel(it).id }.toSet()
+		TvManager.evictProgramsOutsideChannels(keepIds)
+		val evictIndices = (0 until channelCount).filter { it !in keepStart..keepEnd }
+		val evictIds = evictIndices.mapNotNull { TvManager.getChannel(it).id }
+		rowCache.invalidateChannels(evictIds)
+		for (index in evictIndices) {
+			programAdapter.notifyItemChanged(index)
+		}
+		return evictIndices
+	}
+
+	fun onProgramsLoaded(indices: List<Int>, priorityIndex: Int? = null) {
+		val channelIds = indices.mapNotNull { TvManager.getChannel(it).id }
+		rowCache.invalidateChannels(channelIds)
+		rowCache.scheduleBuild(indices, priorityIndex)
+	}
+
+	fun notifyItemChanged(position: Int) {
+		channelAdapter.notifyItemChanged(position)
+		programAdapter.notifyItemChanged(position)
 	}
 
 	fun getChannelHeaderAt(position: Int): GuideChannelHeader? =
@@ -59,6 +117,48 @@ class LiveTvGuideRowsCoordinator(
 
 	fun getProgramRowAt(position: Int): LinearLayout? =
 		programAdapter.getBoundRow(position)
+
+	private fun linkFocus(channelHeader: GuideChannelHeader?, programRow: LinearLayout?) {
+		if (channelHeader == null || programRow == null || programRow.childCount == 0) return
+		val firstCell = programRow.getChildAt(0) as? ProgramGridCell ?: return
+		channelHeader.nextFocusRightId = firstCell.id
+		firstCell.nextFocusLeftId = channelHeader.id
+		relinkHeaderVerticalFocus(channelHeader, firstCell)
+	}
+
+	private fun relinkHeaderVerticalFocus(channelHeader: GuideChannelHeader, anchorCell: ProgramGridCell) {
+		if (anchorCell.nextFocusUpId != View.NO_ID) {
+			channelHeader.nextFocusUpId = anchorCell.nextFocusUpId
+		}
+		if (anchorCell.nextFocusDownId != View.NO_ID) {
+			channelHeader.nextFocusDownId = anchorCell.nextFocusDownId
+		}
+	}
+
+	private fun linkVerticalFocus(currentRow: LinearLayout, position: Int) {
+		if (position > 0) {
+			getProgramRowAt(position - 1)?.let { prev ->
+				TvManager.setFocusParams(currentRow, prev, true)
+				TvManager.setFocusParams(prev, currentRow, false)
+				channelAdapter.getBoundHeader(position - 1)?.let { header ->
+					val anchor = prev.getChildAt(0) as? ProgramGridCell
+					if (anchor != null) relinkHeaderVerticalFocus(header, anchor)
+				}
+			}
+		}
+		getProgramRowAt(position + 1)?.let { next ->
+			TvManager.setFocusParams(currentRow, next, false)
+			TvManager.setFocusParams(next, currentRow, true)
+			channelAdapter.getBoundHeader(position + 1)?.let { header ->
+				val anchor = next.getChildAt(0) as? ProgramGridCell
+				if (anchor != null) relinkHeaderVerticalFocus(header, anchor)
+			}
+		}
+		channelAdapter.getBoundHeader(position)?.let { header ->
+			val anchor = currentRow.getChildAt(0) as? ProgramGridCell
+			if (anchor != null) relinkHeaderVerticalFocus(header, anchor)
+		}
+	}
 
 	inner class ChannelAdapter : RecyclerView.Adapter<GuideChannelViewHolder>() {
 		private val headers = mutableMapOf<Int, GuideChannelHeader>()
@@ -85,13 +185,9 @@ class LiveTvGuideRowsCoordinator(
 			header.loadImage()
 			headers[position] = header
 
-			val programRow = programAdapter.getBoundRow(position)
-			if (programRow != null && programRow.childCount > 0) {
-				val firstCell = programRow.getChildAt(0) as? ProgramGridCell
-				if (firstCell != null) {
-					header.nextFocusRightId = firstCell.id
-					firstCell.nextFocusLeftId = header.id
-				}
+			val channelId = channel.id
+			if (channelId != null) {
+				linkFocus(header, rowCache.getRow(channelId))
 			}
 		}
 
@@ -115,50 +211,49 @@ class LiveTvGuideRowsCoordinator(
 
 		override fun onBindViewHolder(holder: GuideProgramViewHolder, position: Int) {
 			holder.container.removeAllViews()
+			rows.remove(position)
+
 			if (position >= TvManager.getChannelCount()) {
-				holder.container.layoutParams.height = 0
+				holder.itemView.layoutParams = RecyclerView.LayoutParams(
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+					0,
+				)
 				return
 			}
 
 			val channel = TvManager.getChannel(position)
-			val channelId = channel.id ?: return
-			val programs = TvManager.getProgramsForChannel(channelId, filters)
-			val programRow = when {
-				TvManager.hasProgramsForChannel(channelId) ->
-					rowBuilder.buildProgramRow(programs, channelId, guideStart, guideEnd)
-				filters.any() -> null
-				else -> rowBuilder.buildProgramRow(emptyList(), channelId, guideStart, guideEnd)
-			}
+			val channelId = channel.id
+			if (channelId == null) return
 
-			if (programRow == null) {
-				holder.container.layoutParams = RecyclerView.LayoutParams(
-					ViewGroup.LayoutParams.WRAP_CONTENT,
-					0,
-				)
-				rows.remove(position)
-				return
-			}
-
-			holder.container.layoutParams = RecyclerView.LayoutParams(
+			holder.itemView.layoutParams = RecyclerView.LayoutParams(
 				ViewGroup.LayoutParams.WRAP_CONTENT,
 				rowHeightPx,
 			)
-			holder.container.addView(programRow)
-			rows[position] = programRow
 
-			previousProgramRow?.let { prev ->
-				TvManager.setFocusParams(programRow, prev, true)
-				TvManager.setFocusParams(prev, programRow, false)
+			val cached = rowCache.getRow(channelId)
+			if (cached != null) {
+				rowCache.attachRow(holder.container, cached)
+				rows[position] = cached
+				linkVerticalFocus(cached, position)
+				linkFocus(channelAdapter.getBoundHeader(position), cached)
+				onProgramRowAttached(position, cached)
+				return
 			}
-			previousProgramRow = programRow
 
-			channelAdapter.getBoundHeader(position)?.let { header ->
-				if (programRow.childCount > 0) {
-					val firstCell = programRow.getChildAt(0) as ProgramGridCell
-					header.nextFocusRightId = firstCell.id
-					firstCell.nextFocusLeftId = header.id
-				}
+			if (!TvManager.hasProgramsForChannel(channelId)) {
+				rowCache.scheduleBuild(position)
+				return
 			}
+
+			if (filters.any()) {
+				holder.itemView.layoutParams = RecyclerView.LayoutParams(
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+					0,
+				)
+				return
+			}
+
+			rowCache.scheduleBuild(position)
 		}
 
 		override fun onViewRecycled(holder: GuideProgramViewHolder) {
@@ -171,19 +266,43 @@ class LiveTvGuideRowsCoordinator(
 	fun attachScrollListener(
 		channelList: RecyclerView,
 		programList: RecyclerView,
+		onProgramRowBuilt: ((channelId: java.util.UUID) -> Unit)? = null,
+		onScrollIdle: (() -> Unit)? = null,
 	) {
+		rowCache.attachProgramList(programList) { position ->
+			notifyItemChanged(position)
+			TvManager.getChannel(position).id?.let { channelId ->
+				onProgramRowBuilt?.invoke(channelId)
+			}
+		}
+
 		val channelLm = channelList.layoutManager as LinearLayoutManager
 		val programLm = programList.layoutManager as LinearLayoutManager
+		var syncingScroll = false
+
+		fun syncProgramToChannel() {
+			if (syncingScroll) return
+			val pos = channelLm.findFirstVisibleItemPosition()
+			if (pos == RecyclerView.NO_POSITION) return
+			val top = channelLm.findViewByPosition(pos)?.top ?: 0
+			syncingScroll = true
+			programLm.scrollToPositionWithOffset(pos, top)
+			syncingScroll = false
+		}
+
+		fun syncChannelToProgram() {
+			if (syncingScroll) return
+			val pos = programLm.findFirstVisibleItemPosition()
+			if (pos == RecyclerView.NO_POSITION) return
+			val top = programLm.findViewByPosition(pos)?.top ?: 0
+			syncingScroll = true
+			channelLm.scrollToPositionWithOffset(pos, top)
+			syncingScroll = false
+		}
 
 		val reportRange = {
-			val first = minOf(
-				channelLm.findFirstVisibleItemPosition().coerceAtLeast(0),
-				programLm.findFirstVisibleItemPosition().coerceAtLeast(0),
-			)
-			val last = maxOf(
-				channelLm.findLastVisibleItemPosition().coerceAtLeast(0),
-				programLm.findLastVisibleItemPosition().coerceAtLeast(0),
-			)
+			val first = channelLm.findFirstVisibleItemPosition().coerceAtLeast(0)
+			val last = channelLm.findLastVisibleItemPosition().coerceAtLeast(0)
 			if (first != RecyclerView.NO_POSITION && last != RecyclerView.NO_POSITION) {
 				onVisibleRangeChanged(first, last)
 			}
@@ -191,23 +310,20 @@ class LiveTvGuideRowsCoordinator(
 
 		channelList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
 			override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-				if (dy != 0) programList.scrollBy(0, dy)
-				reportRange()
+				if (dy != 0) syncProgramToChannel()
 			}
 
 			override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-				if (newState == RecyclerView.SCROLL_STATE_IDLE) reportRange()
+				if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+					reportRange()
+					onScrollIdle?.invoke()
+				}
 			}
 		})
 
 		programList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
 			override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-				if (dy != 0) channelList.scrollBy(0, dy)
-				reportRange()
-			}
-
-			override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-				if (newState == RecyclerView.SCROLL_STATE_IDLE) reportRange()
+				if (dy != 0) syncChannelToProgram()
 			}
 		})
 	}

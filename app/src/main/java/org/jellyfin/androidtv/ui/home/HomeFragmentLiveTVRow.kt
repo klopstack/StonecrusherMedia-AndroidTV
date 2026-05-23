@@ -12,6 +12,7 @@ import androidx.leanback.widget.RowPresenter
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.constant.LiveTvOption
+import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.ui.GridButton
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
@@ -24,20 +25,50 @@ class HomeFragmentLiveTVRow(
 	private val activity: Activity,
 	private val userRepository: UserRepository,
 	private val navigationRepository: NavigationRepository,
+	private val userPreferences: UserPreferences,
 ) : HomeFragmentRow, OnItemViewClickedListener {
 	override fun addToRowsAdapter(context: Context, cardPresenter: CardPresenter, rowsAdapter: MutableObjectAdapter<Row>) {
+		val posterSize = userPreferences[UserPreferences.posterSize]
+		val imageHeight = posterSize.height
+		// Match the portrait tile aspect ratio used elsewhere in the app
+		val width = (imageHeight * 256 / 384)
+
 		val header = HeaderItem(rowsAdapter.size().toLong(), activity.getString(R.string.pref_live_tv_cat))
-		val adapter = ArrayObjectAdapter(GridButtonPresenter())
+		val adapter = ArrayObjectAdapter(GridButtonPresenter(width, imageHeight))
 
 		// Live TV Guide button
-		adapter.add(GridButton(LiveTvOption.LIVE_TV_GUIDE_OPTION_ID, activity.getString(R.string.lbl_live_tv_guide)))
+		adapter.add(
+			GridButton(
+				LiveTvOption.LIVE_TV_GUIDE_OPTION_ID,
+				activity.getString(R.string.lbl_live_tv_guide),
+				R.drawable.tile_port_guide,
+			)
+		)
 		// Live TV Recordings button
-		adapter.add(GridButton(LiveTvOption.LIVE_TV_RECORDINGS_OPTION_ID, activity.getString(R.string.lbl_recorded_tv)))
+		adapter.add(
+			GridButton(
+				LiveTvOption.LIVE_TV_RECORDINGS_OPTION_ID,
+				activity.getString(R.string.lbl_recorded_tv),
+				R.drawable.tile_port_record,
+			)
+		)
 		if (Utils.canManageRecordings(userRepository.currentUser.value)) {
 			// Recording Schedule button
-			adapter.add(GridButton(LiveTvOption.LIVE_TV_SCHEDULE_OPTION_ID, activity.getString(R.string.lbl_schedule)))
+			adapter.add(
+				GridButton(
+					LiveTvOption.LIVE_TV_SCHEDULE_OPTION_ID,
+					activity.getString(R.string.lbl_schedule),
+					R.drawable.tile_port_time,
+				)
+			)
 			// Recording Series button
-			adapter.add(GridButton(LiveTvOption.LIVE_TV_SERIES_OPTION_ID, activity.getString(R.string.lbl_series)))
+			adapter.add(
+				GridButton(
+					LiveTvOption.LIVE_TV_SERIES_OPTION_ID,
+					activity.getString(R.string.lbl_series),
+					R.drawable.tile_port_series_timer,
+				)
+			)
 		}
 
 		rowsAdapter.add(ListRow(header, adapter))

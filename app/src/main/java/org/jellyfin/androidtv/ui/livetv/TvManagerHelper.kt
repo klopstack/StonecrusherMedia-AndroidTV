@@ -2,6 +2,7 @@ package org.jellyfin.androidtv.ui.livetv
 
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,7 +40,7 @@ fun loadLiveTvChannels(fragment: Fragment, callback: (channels: Collection<BaseI
 		runCatching {
 			withContext(Dispatchers.IO) {
 				api.liveTvApi.getLiveTvChannels(
-					addCurrentProgram = true,
+					addCurrentProgram = false,
 					enableFavoriteSorting = liveTvPreferences[LiveTvPreferences.favsAtTop],
 					sortBy = if (sortDatePlayed) setOf(ItemSortBy.DATE_PLAYED) else setOf(ItemSortBy.SORT_NAME),
 					sortOrder = if (sortDatePlayed) SortOrder.DESCENDING else SortOrder.ASCENDING,
@@ -60,24 +61,64 @@ fun getPrograms(
 	callback: (programs: Collection<BaseItemDto>?) -> Unit,
 ) {
 	val api by fragment.inject<ApiClient>()
-
 	fragment.lifecycleScope.launch {
-		runCatching {
-			withContext(Dispatchers.IO) {
-				api.liveTvApi.getLiveTvPrograms(
-					channelIds = channelIds.toList(),
-					enableImages = false,
-					sortBy = setOf(ItemSortBy.START_DATE),
-					maxStartDate = endTime,
-					minEndDate = startTime,
-				).content.items
-			}
-		}.fold(
-			onSuccess = { programs -> callback(programs) },
-			onFailure = { callback(null) },
-		)
+		val result = fetchProgramsSync(api, channelIds, startTime, endTime)
+		callback(result)
 	}
 }
+
+fun fetchPrograms(
+	api: ApiClient,
+	channelIds: Array<UUID>,
+	startTime: LocalDateTime,
+	endTime: LocalDateTime,
+	callback: (programs: Collection<BaseItemDto>?) -> Unit,
+) {
+	CoroutineScope(Dispatchers.Main).launch {
+		val result = fetchProgramsSync(api, channelIds, startTime, endTime)
+		callback(result)
+	}
+}
+
+suspend fun fetchProgramsSync(
+	api: ApiClient,
+	channelIds: Array<UUID>,
+	startTime: LocalDateTime,
+	endTime: LocalDateTime,
+): Collection<BaseItemDto>? {
+	if (channelIds.isEmpty()) return emptyList()
+	val startRounded = roundProgramTime(startTime)
+	val endRounded = endTime.minusSeconds(1)
+	return runCatching {
+		withContext(Dispatchers.IO) {
+			api.liveTvApi.getLiveTvPrograms(
+				channelIds = channelIds.toList(),
+				enableImages = false,
+				sortBy = setOf(ItemSortBy.START_DATE),
+				maxStartDate = endRounded,
+				minEndDate = startRounded,
+			).content.items
+		}
+	}.getOrNull()
+}
+
+suspend fun loadLiveTvChannelsSync(api: ApiClient, liveTvPreferences: LiveTvPreferences): Collection<BaseItemDto>? {
+	val sortDatePlayed =
+		liveTvPreferences[LiveTvPreferences.channelOrder] == ItemSortBy.DATE_PLAYED.serialName
+	return runCatching {
+		withContext(Dispatchers.IO) {
+			api.liveTvApi.getLiveTvChannels(
+				addCurrentProgram = false,
+				enableFavoriteSorting = liveTvPreferences[LiveTvPreferences.favsAtTop],
+				sortBy = if (sortDatePlayed) setOf(ItemSortBy.DATE_PLAYED) else setOf(ItemSortBy.SORT_NAME),
+				sortOrder = if (sortDatePlayed) SortOrder.DESCENDING else SortOrder.ASCENDING,
+			).content.items
+		}
+	}.getOrNull()
+}
+
+fun roundProgramTime(startTime: LocalDateTime): LocalDateTime =
+	startTime.withMinute(if (startTime.minute >= 30) 30 else 0).withSecond(0).withNano(0)
 
 fun getScheduleRows(
 	fragment: Fragment,

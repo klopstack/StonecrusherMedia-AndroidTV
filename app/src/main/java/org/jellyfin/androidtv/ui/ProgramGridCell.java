@@ -16,6 +16,7 @@ import android.widget.TextView;
 
 import org.jellyfin.androidtv.R;
 import org.jellyfin.androidtv.preference.LiveTvPreferences;
+import org.jellyfin.androidtv.ui.livetv.GuideCellDisplayOptions;
 import org.jellyfin.androidtv.ui.livetv.LiveTvGuide;
 import org.jellyfin.androidtv.util.DateTimeExtensionsKt;
 import org.jellyfin.androidtv.util.Utils;
@@ -34,10 +35,23 @@ public class ProgramGridCell extends RelativeLayout implements RecordingIndicato
     private int mBackgroundColor = 0;
     private boolean isLast;
     private boolean isFirst;
+    private GuideCellDisplayOptions mDisplayOptions;
 
     public ProgramGridCell(Context context, LiveTvGuide activity, BaseItemDto program, boolean keyListen) {
+        this(context, activity, program, keyListen, null);
+    }
+
+    public ProgramGridCell(Context context, LiveTvGuide activity, BaseItemDto program, boolean keyListen, GuideCellDisplayOptions displayOptions) {
         super(context);
+        mDisplayOptions = displayOptions;
         initComponent((Activity) context, activity, program, keyListen);
+    }
+
+    private GuideCellDisplayOptions getDisplayOptions() {
+        if (mDisplayOptions == null) {
+            mDisplayOptions = GuideCellDisplayOptions.Companion.from(get(LiveTvPreferences.class));
+        }
+        return mDisplayOptions;
     }
 
     private void initComponent(Activity context, LiveTvGuide activity, BaseItemDto program, boolean keyListen) {
@@ -69,17 +83,17 @@ public class ProgramGridCell extends RelativeLayout implements RecordingIndicato
             }
         }
 
-        LiveTvPreferences liveTvPreferences = get(LiveTvPreferences.class);
+        GuideCellDisplayOptions displayOptions = getDisplayOptions();
 
-        if (liveTvPreferences.get(LiveTvPreferences.Companion.getShowNewIndicator()) && BaseItemExtensionsKt.isNew(program) && (!liveTvPreferences.get(LiveTvPreferences.Companion.getShowPremiereIndicator()) || !Utils.isTrue(program.isPremiere()))) {
+        if (displayOptions.getShowNewIndicator() && BaseItemExtensionsKt.isNew(program) && (!displayOptions.getShowPremiereIndicator() || !Utils.isTrue(program.isPremiere()))) {
             addBlockText(context.getString(R.string.lbl_new), 10, Color.GRAY, R.drawable.dark_green_gradient);
         }
 
-        if (liveTvPreferences.get(LiveTvPreferences.Companion.getShowPremiereIndicator()) && Utils.isTrue(program.isPremiere())) {
+        if (displayOptions.getShowPremiereIndicator() && Utils.isTrue(program.isPremiere())) {
             addBlockText(context.getString(R.string.lbl_premiere), 10, Color.GRAY, R.drawable.dark_green_gradient);
         }
 
-        if (liveTvPreferences.get(LiveTvPreferences.Companion.getShowRepeatIndicator()) && Utils.isTrue(program.isRepeat())) {
+        if (displayOptions.getShowRepeatIndicator() && Utils.isTrue(program.isRepeat())) {
             addBlockText(context.getString(R.string.lbl_repeat), 10, Color.GRAY, androidx.leanback.R.color.lb_default_brand_color);
         }
 
@@ -87,7 +101,7 @@ public class ProgramGridCell extends RelativeLayout implements RecordingIndicato
             addBlockText(program.getOfficialRating(), 10, Color.BLACK, R.drawable.block_text_bg);
         }
 
-        if (liveTvPreferences.get(LiveTvPreferences.Companion.getShowHDIndicator()) && Utils.isTrue(program.isHd())) {
+        if (displayOptions.getShowHdIndicator() && Utils.isTrue(program.isHd())) {
             addBlockText("HD", 10, Color.BLACK, R.drawable.block_text_bg);
         }
 
@@ -122,9 +136,9 @@ public class ProgramGridCell extends RelativeLayout implements RecordingIndicato
     }
 
     public void setCellBackground() {
-        LiveTvPreferences liveTvPreferences = get(LiveTvPreferences.class);
+        GuideCellDisplayOptions displayOptions = getDisplayOptions();
 
-        if (liveTvPreferences.get(LiveTvPreferences.Companion.getColorCodeGuide())) {
+        if (displayOptions.getColorCodeGuide()) {
             if (Utils.isTrue(mProgram.isMovie())) {
                 mBackgroundColor = getResources().getColor(R.color.guide_movie_bg);
             } else if (Utils.isTrue(mProgram.isNews())) {

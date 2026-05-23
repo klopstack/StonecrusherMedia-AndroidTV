@@ -50,6 +50,7 @@ import org.jellyfin.androidtv.ui.itemhandling.BaseItemPersonBaseRowItem;
 import org.jellyfin.androidtv.ui.itemhandling.ChapterItemInfoBaseRowItem;
 import org.jellyfin.androidtv.ui.itemhandling.ItemRowAdapter;
 import org.jellyfin.androidtv.ui.livetv.GuideFilters;
+import org.jellyfin.androidtv.ui.livetv.GuideTimeWindow;
 import org.jellyfin.androidtv.ui.livetv.LiveTvGuide;
 import org.jellyfin.androidtv.ui.livetv.LiveTvGuideFragment;
 import org.jellyfin.androidtv.ui.livetv.LiveTvGuideFragmentHelperKt;
@@ -94,7 +95,7 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
     private PositionableListRowPresenter mPopupRowPresenter;
 
     //Live guide items
-    private static final int GUIDE_HOURS = 9;
+    private static final int GUIDE_HOURS = (int) GuideTimeWindow.INITIAL_LOAD_HOURS;
 
     BaseItemDto mSelectedProgram;
     RelativeLayout mSelectedProgramView;
@@ -562,6 +563,14 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
                         // tune to the current channel
                         switchChannel(mSelectedProgram.getChannelId());
                         return true;
+                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                            && requireActivity().getCurrentFocus() instanceof ProgramGridCell
+                            && mSelectedProgramView != null
+                            && ((ProgramGridCell) mSelectedProgramView).isLast()
+                            && mCurrentGuideEnd != null
+                            && mCurrentGuideEnd.isBefore(GuideTimeWindow.maxHorizon())) {
+                        mGuideGrid.extendHorizontally();
+                        return true;
                     } else {
                         return true;
                     }
@@ -828,16 +837,19 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
 
     private void loadGuide() {
         tvGuideBinding.spinner.setVisibility(View.VISIBLE);
-        fillTimeLine(GUIDE_HOURS);
+        mCurrentGuideStart = GuideTimeWindow.roundGuideStart(LocalDateTime.now());
+        mCurrentGuideEnd = GuideTimeWindow.initialDisplayEnd(mCurrentGuideStart, false);
+        LiveTvGuideFragmentHelperKt.fillLinearTimeLine(tvGuideBinding.timeline, requireContext(), mCurrentGuideStart, mCurrentGuideEnd);
+        tvGuideBinding.displayDate.setText(TimeUtils.getFriendlyDate(requireContext(), mCurrentGuideStart));
         TvManager.loadAllChannels(this, ndx -> {
-            int scrollIndex = ndx > 12 ? ndx - 6 : 0;
+            int scrollIndex = Math.max(0, ndx - LiveTvGuideGrid.CHANNEL_LOAD_RADIUS);
 
             mAllChannels = TvManager.getAllChannels();
             if (!mAllChannels.isEmpty()) {
-                mGuideGrid.setGuideRange(mCurrentGuideStart, mCurrentGuideEnd, true);
-                mGuideGrid.setChannels(mAllChannels.size());
+                boolean hydrated = mGuideGrid.hydrateFromDisk();
+                mGuideGrid.prepareGuideWindow(mCurrentGuideStart, mCurrentGuideEnd, mAllChannels.size(), hydrated);
                 mGuideGrid.scrollToChannel(scrollIndex);
-                mGuideGrid.requestInitialPrograms();
+                mGuideGrid.requestInitialPrograms(ndx);
                 tvGuideBinding.channelsStatus.setText(getResources().getString(R.string.lbl_tv_channel_status, mAllChannels.size(), mAllChannels.size()));
                 tvGuideBinding.filterStatus.setText(getResources().getString(R.string.lbl_tv_filter_status, GUIDE_HOURS));
                 requestOverlayGuideFocus();
@@ -858,8 +870,7 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
         mFirstFocusChannelId = null;
         requireView().post(() -> {
             if (!isAdded()) return;
-            View focus = mGuideGrid.findFocusViewForChannel(focusId, false);
-            if (focus != null) focus.requestFocus();
+            mGuideGrid.requestFocusForChannel(focusId, false);
         });
     }
 
@@ -871,30 +882,10 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
     }
 
     private void fillTimeLine(int hours) {
-        mCurrentGuideStart = LocalDateTime.now();
-        mCurrentGuideStart = mCurrentGuideStart
-                .withMinute(mCurrentGuideStart.getMinute() >= 30 ? 30 : 0)
-                .withSecond(0)
-                .withNano(0);
-
+        mCurrentGuideStart = GuideTimeWindow.roundGuideStart(LocalDateTime.now());
+        mCurrentGuideEnd = mCurrentGuideStart.plusHours(hours);
         tvGuideBinding.displayDate.setText(TimeUtils.getFriendlyDate(requireContext(), mCurrentGuideStart));
-        mCurrentGuideEnd = mCurrentGuideStart
-                .plusHours(hours);
-        int oneHour = 60 * Utils.convertDpToPixel(requireContext(), 7);
-        int halfHour = 30 * Utils.convertDpToPixel(requireContext(), 7);
-        int interval = mCurrentGuideStart.getMinute() >= 30 ? 30 : 60;
-        tvGuideBinding.timeline.removeAllViews();
-
-        LocalDateTime current = mCurrentGuideStart;
-        while (current.isBefore(mCurrentGuideEnd)) {
-            TextView time = new TextView(requireContext());
-            time.setText(DateTimeExtensionsKt.getTimeFormatter(getContext()).format(current));
-            time.setWidth(interval == 30 ? halfHour : oneHour);
-            tvGuideBinding.timeline.addView(time);
-            current = current.plusMinutes(interval);
-            //after first one, we always go on hours
-            interval = 60;
-        }
+        LiveTvGuideFragmentHelperKt.fillLinearTimeLine(tvGuideBinding.timeline, requireContext(), mCurrentGuideStart, mCurrentGuideEnd);
     }
 
     private Runnable detailUpdateTask = new Runnable() {
@@ -923,6 +914,9 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
         mSelectedProgramView = programView;
         if (mSelectedProgramView instanceof ProgramGridCell) {
             mSelectedProgram = ((ProgramGridCell) mSelectedProgramView).getProgram();
+            if (mGuideGrid != null) {
+                mGuideGrid.onProgramCellFocused(mSelectedProgram);
+            }
             mHandler.removeCallbacks(detailUpdateTask);
             mHandler.postDelayed(detailUpdateTask, 500);
         } else if (mSelectedProgramView instanceof GuideChannelHeader) {
@@ -935,6 +929,37 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
                 mHandler.postDelayed(detailUpdateTask, 500);
             }
         }
+    }
+
+    @Override
+    public void redirectChannelHeaderFocus(GuideChannelHeader header) {
+        if (mGuideGrid != null) {
+            mGuideGrid.redirectChannelHeaderFocus(header);
+        }
+    }
+
+    @Override
+    public void onGuideDisplayEndExtended(LocalDateTime newEnd) {
+    }
+
+    @Override
+    public void extendTimeLineTo(LocalDateTime newEnd) {
+        if (!newEnd.isAfter(mCurrentGuideEnd)) return;
+        LiveTvGuideFragmentHelperKt.appendLinearTimeLineSegments(
+                tvGuideBinding.timeline,
+                requireContext(),
+                mCurrentGuideEnd,
+                newEnd
+        );
+        mCurrentGuideEnd = newEnd;
+    }
+
+    @Override
+    public View findVerticalProgramFocusTarget(GuideChannelHeader header, int direction) {
+        if (mGuideGrid != null) {
+            return mGuideGrid.findVerticalProgramFocusTarget(header, direction);
+        }
+        return null;
     }
 
     public void dismissProgramOptions() {
