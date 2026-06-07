@@ -469,12 +469,11 @@ private fun Navbar(
 				}
 
 				if (showLibrariesInToolbar) {
-					ExpandableLibrariesButton(
+					PrimaryLibraryButtons(
 						activeLibraryId = activeLibraryId,
 						userViews = userViews,
 						aggregatedLibraries = aggregatedLibraries,
 						enableMultiServer = enableMultiServer,
-						currentSession = currentSession,
 						colors = toolbarButtonColors,
 						activeColors = activeButtonColors,
 						navigationRepository = navigationRepository,
