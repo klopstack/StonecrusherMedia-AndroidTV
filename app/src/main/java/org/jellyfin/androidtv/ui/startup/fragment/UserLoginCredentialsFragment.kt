@@ -18,7 +18,9 @@ import org.jellyfin.androidtv.auth.model.AuthenticatedState
 import org.jellyfin.androidtv.auth.model.AuthenticatingState
 import org.jellyfin.androidtv.auth.model.RequireSignInState
 import org.jellyfin.androidtv.auth.model.ServerUnavailableState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedLoginState
 import org.jellyfin.androidtv.auth.model.ServerVersionNotSupported
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.databinding.FragmentUserLoginCredentialsBinding
 import org.jellyfin.androidtv.ui.startup.UserLoginViewModel
@@ -82,6 +84,13 @@ class UserLoginCredentialsFragment : Fragment() {
 								R.string.server_issue_outdated_version,
 								state.server.version,
 								ServerRepository.recommendedServerVersion.toString()
+							)
+						)
+
+						is ServerTypeNotSupportedLoginState -> binding.error.setText(
+							getString(
+								R.string.server_type_not_supported,
+								state.server.serverType.displayName(),
 							)
 						)
 

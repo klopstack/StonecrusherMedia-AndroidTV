@@ -149,7 +149,7 @@ class SessionRepositoryImpl(
 
 			// Check if server version is supported
 			server = serverRepository.getServer(session.serverId, true)
-			if (server == null || !server.versionSupported) return false
+			if (server == null || !server.isSupported) return false
 		}
 
 		val deviceInfo = session?.let { defaultDeviceInfo.forUser(it.userId) } ?: defaultDeviceInfo

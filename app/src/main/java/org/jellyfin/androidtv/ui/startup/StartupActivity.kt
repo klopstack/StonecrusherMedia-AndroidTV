@@ -28,7 +28,9 @@ import org.jellyfin.androidtv.StonecrusherApplication
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepositoryState
 import org.jellyfin.androidtv.auth.repository.UserRepository
@@ -213,6 +215,14 @@ class StartupActivity : FragmentActivity() {
 					Toast.makeText(
 						this@StartupActivity,
 						R.string.server_connection_failed,
+						Toast.LENGTH_LONG,
+					).show()
+					showServerSelection()
+				}
+				is ServerTypeNotSupportedState -> {
+					Toast.makeText(
+						this@StartupActivity,
+						getString(R.string.server_type_not_supported, state.serverType.displayName()),
 						Toast.LENGTH_LONG,
 					).show()
 					showServerSelection()

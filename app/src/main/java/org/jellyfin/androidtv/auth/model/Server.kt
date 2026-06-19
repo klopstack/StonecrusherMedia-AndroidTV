@@ -25,9 +25,18 @@ data class Server(
 			val sv = serverVersion ?: return false
 			return when (serverType) {
 				ServerType.JELLYFIN -> sv >= ServerRepository.minimumJellyfinVersion
-				ServerType.EMBY -> BuildConfig.EMBY_ENABLED && sv >= ServerRepository.minimumEmbyVersion
+				ServerType.EMBY -> sv >= ServerRepository.minimumEmbyVersion
 			}
 		}
+
+	val isSupportedByBuild: Boolean
+		get() = when (serverType) {
+			ServerType.JELLYFIN -> true
+			ServerType.EMBY -> BuildConfig.EMBY_ENABLED
+		}
+
+	val isSupported: Boolean
+		get() = isSupportedByBuild && versionSupported
 
 	operator fun compareTo(other: ServerVersion): Int = serverVersion?.compareTo(other) ?: -1
 

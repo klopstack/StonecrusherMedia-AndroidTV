@@ -15,6 +15,7 @@ import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerAdditionState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
 import org.jellyfin.androidtv.auth.store.AuthenticationStore
 import org.jellyfin.androidtv.util.sdk.toServer
@@ -151,7 +152,7 @@ class ServerRepositoryImpl(
 			val serverType = ServerType.detect(systemInfo.productName, systemInfo.version)
 			if (serverType == ServerType.EMBY && !BuildConfig.EMBY_ENABLED) {
 				Timber.w("Rejected Emby server at %s — Emby support is disabled in this build", chosenRecommendation.address)
-				emit(UnableToConnectState(emptyMap()))
+				emit(ServerTypeNotSupportedState(ServerType.EMBY))
 				return@flow
 			}
 			val defaultName = systemInfo.serverName ?: systemInfo.productName ?: "Server"

@@ -1,16 +1,11 @@
-import java.util.Properties
-
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "stonecrusher-media-androidtv"
 
-fun readGradleProperty(name: String, default: String = "false"): String {
-	val props = Properties()
-	file("gradle.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
-	return props.getProperty(name, default)
-}
-
-val embyEnabled = readGradleProperty("moonfin.emby.enabled").toBooleanStrictOrNull() ?: false
+val embyEnabled: Boolean = providers.gradleProperty("moonfin.emby.enabled")
+	.orElse(providers.environmentVariable("MOONFIN_EMBY_ENABLED"))
+	.map { it.toBooleanStrictOrNull() ?: false }
+	.getOrElse(false)
 
 pluginManagement {
 	repositories {

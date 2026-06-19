@@ -38,7 +38,9 @@ import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerAdditionState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
 import org.jellyfin.androidtv.databinding.FragmentSelectServerBinding
 import org.jellyfin.androidtv.ui.SpacingItemDecoration
@@ -121,6 +123,14 @@ class SelectServerFragment : Fragment() {
 									.map { "${it.key} ${it.value.getSummary(requireContext())}" }
 									.joinToString(prefix = "\n", separator = "\n")
 							), Toast.LENGTH_LONG).show()
+						}
+
+					if (state is ServerTypeNotSupportedState) {
+							Toast.makeText(
+								requireContext(),
+								getString(R.string.server_type_not_supported, state.serverType.displayName()),
+								Toast.LENGTH_LONG,
+							).show()
 						}
 					}
 				}.launchIn(lifecycleScope)
@@ -253,6 +263,10 @@ class SelectServerFragment : Fragment() {
 			when (serverState) {
 				is ConnectingState -> button.isEnabled = false
 				is UnableToConnectState -> {
+					button.isEnabled = true
+					button.text = "${displayText} ⚠"
+				}
+				is ServerTypeNotSupportedState -> {
 					button.isEnabled = true
 					button.text = "${displayText} ⚠"
 				}
