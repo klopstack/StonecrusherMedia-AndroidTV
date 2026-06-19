@@ -418,7 +418,15 @@ class LibraryBrowseFragment : Fragment() {
 		val rowSpacing = 16.dp
 		val minPadding = 40.dp
 		val cardFooterHeight = 5.dp // Spacer below image in LibraryPosterCard/LibraryFolderCard
-		val labelBlockHeight = cardFooterHeight + if (uiState.isGenreMode) 38.dp else 0.dp
+		val hasFolderItems = uiState.items.any {
+			it.type == BaseItemKind.FOLDER || it.type == BaseItemKind.PHOTO_ALBUM
+		}
+		val folderLabelHeight = if (!uiState.isGenreMode && !uiState.useAutoImageType && hasFolderItems) {
+			32.dp // title + optional child-count lines in LibraryFolderCard
+		} else {
+			0.dp
+		}
+		val labelBlockHeight = cardFooterHeight + if (uiState.isGenreMode) 38.dp else folderLabelHeight
 		val layoutCardHeight = if (uiState.useAutoImageType) {
 			autoCardHeight(cardWidth, null)
 		} else {
