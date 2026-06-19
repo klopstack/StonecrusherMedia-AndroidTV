@@ -41,4 +41,31 @@ class SeasonsSerializerTests : FunSpec({
 			json.decodeFromString(serializer, "\"none\"")
 		}
 	}
+
+	test("reject non-string primitive") {
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "123")
+		}
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "true")
+		}
+	}
+
+	test("reject non-array/non-primitive JSON") {
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "{}")
+		}
+	}
+
+	test("reject non-int array elements") {
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "[\"1\"]")
+		}
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "[true]")
+		}
+		shouldThrow<SerializationException> {
+			json.decodeFromString(serializer, "[{}]")
+		}
+	}
 })

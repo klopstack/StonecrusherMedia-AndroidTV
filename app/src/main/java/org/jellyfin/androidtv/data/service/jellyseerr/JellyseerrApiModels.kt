@@ -15,7 +15,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Jellyseerr API Models
@@ -482,7 +481,18 @@ class SeasonsSerializer : KSerializer<Seasons> {
 				else throw SerializationException("Expected \"all\" or array of season numbers, got: ${element.content}")
 			}
 			is JsonArray -> Seasons.List(
-				element.map { it.jsonPrimitive.int }
+				element.map { item ->
+					val primitive = item as? JsonPrimitive
+						?: throw SerializationException("Expected array of season numbers, got non-primitive element")
+					if (primitive.isString) {
+						throw SerializationException("Expected array of season numbers, got string element: ${primitive.content}")
+					}
+					try {
+						primitive.int
+					} catch (_: IllegalArgumentException) {
+						throw SerializationException("Expected array of season numbers, got: ${primitive.content}")
+					}
+				}
 			)
 			else -> throw SerializationException("Expected \"all\" or array of season numbers")
 		}
