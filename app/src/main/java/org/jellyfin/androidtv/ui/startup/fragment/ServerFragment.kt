@@ -154,19 +154,23 @@ class ServerFragment : Fragment() {
 	private fun setupAllProfiles(server: Server) {
 		val progressDialog = ProfileSetupDialog.showProgress(requireContext())
 
-		lifecycleScope.launch {
-			val result = profileProvisioningRepository.provisionAllProfiles(server)
-			progressDialog.dismiss()
+		viewLifecycleOwner.lifecycleScope.launch {
+			try {
+				val result = profileProvisioningRepository.provisionAllProfiles(server)
+				if (!isAdded) return@launch
 
-			result.fold(
-				onSuccess = { summary ->
-					ProfileSetupDialog.showResult(requireContext(), summary)
-					startupViewModel.loadUsers(server)
-				},
-				onFailure = { error ->
-					ProfileSetupDialog.showError(requireContext(), error)
-				},
-			)
+				result.fold(
+					onSuccess = { summary ->
+						ProfileSetupDialog.showResult(requireContext(), summary)
+						startupViewModel.loadUsers(server)
+					},
+					onFailure = { error ->
+						ProfileSetupDialog.showError(requireContext(), error)
+					},
+				)
+			} finally {
+				if (progressDialog.isShowing) progressDialog.dismiss()
+			}
 		}
 	}
 

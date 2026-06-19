@@ -20,11 +20,17 @@ import org.jellyfin.sdk.model.DeviceInfo
 import org.moonfin.server.core.model.ServerType
 import timber.log.Timber
 import java.time.Instant
+import java.util.UUID
 
 interface ProfileProvisioningRepository {
 	suspend fun findAdminAccessToken(server: Server): String?
 	suspend fun provisionAllProfiles(server: Server): Result<ProfileProvisioningSummary>
 }
+
+private data class AdminSession(
+	val userId: UUID,
+	val accessToken: String,
+)
 
 class ProfileProvisioningRepositoryImpl(
 	private val jellyfin: Jellyfin,
@@ -32,7 +38,10 @@ class ProfileProvisioningRepositoryImpl(
 	private val authenticationStore: AuthenticationStore,
 	private val serverUserRepository: ServerUserRepository,
 ) : ProfileProvisioningRepository {
-	override suspend fun findAdminAccessToken(server: Server): String? = withContext(Dispatchers.IO) {
+	override suspend fun findAdminAccessToken(server: Server): String? =
+		findAdminSession(server)?.accessToken
+
+	private suspend fun findAdminSession(server: Server): AdminSession? = withContext(Dispatchers.IO) {
 		serverUserRepository.getStoredServerUsers(server)
 			.filter { !it.accessToken.isNullOrBlank() }
 			.firstNotNullOfOrNull { user ->
@@ -44,7 +53,11 @@ class ProfileProvisioningRepositoryImpl(
 
 				try {
 					val currentUser = api.userApi.getCurrentUser().content
-					if (currentUser.policy?.isAdministrator == true) user.accessToken else null
+					if (currentUser.policy?.isAdministrator == true) {
+						AdminSession(userId = user.id, accessToken = user.accessToken!!)
+					} else {
+						null
+					}
 				} catch (err: ApiClientException) {
 					Timber.w(err, "Unable to verify admin status for stored user ${user.name}")
 					null
@@ -58,13 +71,13 @@ class ProfileProvisioningRepositoryImpl(
 				return@withContext Result.failure(ProvisioningException(ProfileProvisioningError.NotJellyfinServer))
 			}
 
-			val adminAccessToken = findAdminAccessToken(server)
+			val adminSession = findAdminSession(server)
 				?: return@withContext Result.failure(ProvisioningException(ProfileProvisioningError.NoAdminSession))
 
 			val adminApi = jellyfin.createApi(
 				baseUrl = server.address,
-				accessToken = adminAccessToken,
-				deviceInfo = defaultDeviceInfo,
+				accessToken = adminSession.accessToken,
+				deviceInfo = defaultDeviceInfo.forUser(adminSession.userId),
 			)
 
 			try {
@@ -124,14 +137,16 @@ class ProfileProvisioningRepositoryImpl(
 		val accessToken = result.accessToken ?: error("Authentication did not return an access token")
 		val userInfo = result.user ?: error("Authentication did not return user info")
 
+		val userName = userInfo.name?.takeIf { it.isNotBlank() } ?: user.name
+
 		val currentUser = authenticationStore.getUser(server.id, user.id)
 		val updatedUser = currentUser?.copy(
-			name = userInfo.name!!,
+			name = userName,
 			lastUsed = Instant.now().toEpochMilli(),
 			imageTag = userInfo.primaryImage?.tag,
 			accessToken = accessToken,
 		) ?: AuthenticationStoreUser(
-			name = userInfo.name!!,
+			name = userName,
 			imageTag = userInfo.primaryImage?.tag,
 			accessToken = accessToken,
 		)
