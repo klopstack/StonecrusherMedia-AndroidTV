@@ -46,7 +46,7 @@ class JellyseerrRepositoryTests : FunSpec({
 
 	suspend fun JellyseerrRepositoryImpl.autoInitialize(serverUrl: String, userId: UUID) {
 		configureUserPrefs(userId, serverUrl)
-		JellyseerrHttpClient.switchCookieStorage(userId.toString())
+		JellyseerrHttpClient.initializeCookieStorage(context)
 		ensureInitialized()
 	}
 
@@ -119,7 +119,7 @@ class JellyseerrRepositoryTests : FunSpec({
 				every { userRepository.currentUser } returns userFlow
 
 				val repository = JellyseerrRepositoryImpl(context, globalPreferences, userRepository)
-				JellyseerrHttpClient.switchCookieStorage(userA.id.toString())
+				JellyseerrHttpClient.initializeCookieStorage(context)
 				repository.ensureInitialized()
 				repository.isSessionValidCached().shouldBeTrue()
 

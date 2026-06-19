@@ -102,6 +102,7 @@ internal fun createJellyseerrClient(
 	apiKey: String = "test-api-key",
 	userId: String = "test-user",
 ): JellyseerrHttpClient {
+	val client = JellyseerrHttpClient(context, server.baseUrl(), apiKey)
 	JellyseerrHttpClient.switchCookieStorage(userId)
-	return JellyseerrHttpClient(context, server.baseUrl(), apiKey)
+	return client
 }
