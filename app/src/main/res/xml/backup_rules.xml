@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Stored servers & users (without access tokens) -->
-        <include
+        <!-- authentication_store.json contains access tokens — excluded for security -->
+        <exclude
             domain="file"
             path="authentication_store.json" />
 
@@ -21,14 +21,15 @@
         <include
             domain="sharedpref"
             path="AuthenticationPreferences" />
-        <!-- JellyseerrPreferences -->
-        <include
+
+        <!-- Jellyseerr prefs contain API keys and passwords — excluded for security -->
+        <exclude
             domain="sharedpref"
             path="jellyseerr_prefs" />
     </cloud-backup>
     <device-transfer>
-        <!-- Stored servers & users (without access tokens) -->
-        <include
+        <!-- authentication_store.json contains access tokens — excluded for security -->
+        <exclude
             domain="file"
             path="authentication_store.json" />
 
@@ -47,8 +48,9 @@
         <include
             domain="sharedpref"
             path="AuthenticationPreferences" />
-        <!-- JellyseerrPreferences -->
-        <include
+
+        <!-- Jellyseerr prefs contain API keys and passwords — excluded for security -->
+        <exclude
             domain="sharedpref"
             path="jellyseerr_prefs" />
     </device-transfer>
