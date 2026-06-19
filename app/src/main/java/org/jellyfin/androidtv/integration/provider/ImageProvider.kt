@@ -1,6 +1,7 @@
 package org.jellyfin.androidtv.integration.provider
 
 import android.content.ContentProvider
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
@@ -60,10 +61,41 @@ class ImageProvider : ContentProvider() {
 	}
 
 	private fun isAllowedImageUrl(src: String): Boolean {
-		val normalizedSrc = src.trim().trimEnd('/')
+		val srcUri = runCatching { src.trim().toUri() }.getOrNull() ?: return false
+
+		if (srcUri.scheme == ContentResolver.SCHEME_ANDROID_RESOURCE) {
+			return srcUri.authority == context?.packageName
+		}
+
+		if (srcUri.scheme !in ALLOWED_REMOTE_SCHEMES) return false
+
 		return authenticationStore.getServers().values.any { server ->
-			val baseUrl = server.address.trim().trimEnd('/')
-			normalizedSrc.startsWith(baseUrl, ignoreCase = true)
+			matchesServerBaseUrl(srcUri, server.address)
+		}
+	}
+
+	private fun matchesServerBaseUrl(srcUri: Uri, serverAddress: String): Boolean {
+		val baseUri = runCatching { serverAddress.trim().trimEnd('/').toUri() }.getOrNull() ?: return false
+		if (baseUri.scheme !in ALLOWED_REMOTE_SCHEMES) return false
+		if (!srcUri.scheme.equals(baseUri.scheme, ignoreCase = true)) return false
+
+		val srcHost = srcUri.host ?: return false
+		val baseHost = baseUri.host ?: return false
+		if (!srcHost.equals(baseHost, ignoreCase = true)) return false
+
+		if (normalizedPort(srcUri) != normalizedPort(baseUri)) return false
+
+		val basePath = baseUri.path?.trimEnd('/') ?: ""
+		val srcPath = srcUri.path ?: ""
+		return basePath.isEmpty() || srcPath.startsWith(basePath, ignoreCase = true)
+	}
+
+	private fun normalizedPort(uri: Uri): Int {
+		if (uri.port != -1) return uri.port
+		return when (uri.scheme?.lowercase()) {
+			"https" -> 443
+			"http" -> 80
+			else -> -1
 		}
 	}
 
@@ -87,6 +119,7 @@ class ImageProvider : ContentProvider() {
 	}
 
 	companion object {
+		private val ALLOWED_REMOTE_SCHEMES = setOf("http", "https")
 		private const val COMPRESSION_QUALITY = 95
 
 		/**
