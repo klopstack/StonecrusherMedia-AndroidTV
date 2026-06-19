@@ -222,7 +222,7 @@ class JellyseerrHttpClient(
 				if (!bodyString.trimStart().startsWith("{\"FileContents\"")) {
 					// Not a FileContents envelope, rebuild with original content
 					val newBody = bodyString.toResponseBody(body.contentType())
-					return@addInterceptor response.newBuilder().body(newBody).build()
+					return@addInterceptor response.newBuilder().body(newBody).removeHeader("Content-Length").build()
 				}
 
 				// Parse and unwrap the FileContents envelope
@@ -242,7 +242,7 @@ class JellyseerrHttpClient(
 							val newBody = decodedString.toResponseBody(
 								innerContentType.toMediaType()
 							)
-							return@addInterceptor response.newBuilder().body(newBody).build()
+							return@addInterceptor response.newBuilder().body(newBody).removeHeader("Content-Length").build()
 						}
 					}
 				} catch (e: Exception) {
@@ -251,7 +251,7 @@ class JellyseerrHttpClient(
 
 				// Fallback: rebuild with original content
 				val newBody = bodyString.toResponseBody(body.contentType())
-				response.newBuilder().body(newBody).build()
+				response.newBuilder().body(newBody).removeHeader("Content-Length").build()
 			}
 
 			config {

@@ -31,12 +31,11 @@ class AuthenticationPreferences(context: Context) : SharedPreferenceStore(
 			migration(toVersion = 2) {
 				// Unfortunately we cannot migrate the "specific user" login option
 				// so we'll reset the preference to disabled if it was used
-				if (it.getString("auto_login_user_behavior", null) === UserSelectBehavior.SPECIFIC_USER.name) {
+				if (it.getString("auto_login_user_behavior", null) == UserSelectBehavior.SPECIFIC_USER.name) {
 					putString("auto_login_user_id", "")
 					putString("auto_login_user_behavior", UserSelectBehavior.DISABLED.name)
+					putString("last_user_id", "")
 				}
-
-				putString("last_user_id", "")
 			}
 		}
 	}

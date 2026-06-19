@@ -313,6 +313,11 @@ class JellyseerrRepositoryImpl(
 	}
 
 	override suspend fun isSessionValidCached(): Boolean {
+		val currentUserId = userRepository.currentUser.value?.id?.toString()
+		if (currentUserId != null && currentUserId != lastUserId) {
+			invalidateSessionCache()
+		}
+
 		val currentTime = System.currentTimeMillis()
 		
 		// Return cached result if it's still valid and not too old

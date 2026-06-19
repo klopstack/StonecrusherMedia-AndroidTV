@@ -9,6 +9,7 @@ import io.ktor.util.date.GMTDate
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
+import java.util.Base64
 
 /**
  * Delegating cookie storage that can switch between different user storages
@@ -150,15 +151,32 @@ class PersistentCookiesStorage(context: Context, userId: String? = null) : Cooki
 		return urlPath.startsWith(cookiePath)
 	}
 
+	private companion object {
+		const val SERIALIZATION_VERSION_V2 = "v2"
+	}
+
+	private fun encodeCookieFieldV2(value: String) =
+		Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8))
+
+	private fun decodeCookieFieldV2(encoded: String) =
+		String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+
+	private fun decodeLegacyOptionalField(value: String) = when (value) {
+		"-", "" -> null
+		else -> value.replace("%7C", "|")
+	}
+
 	private fun serializeCookie(cookie: Cookie): String {
 		return buildString {
-			append(cookie.name)
+			append(SERIALIZATION_VERSION_V2)
 			append("|")
-			append(cookie.value)
+			append(encodeCookieFieldV2(cookie.name))
 			append("|")
-			append(cookie.domain ?: "")
+			append(encodeCookieFieldV2(cookie.value))
 			append("|")
-			append(cookie.path ?: "")
+			append(encodeCookieFieldV2(cookie.domain.orEmpty()))
+			append("|")
+			append(encodeCookieFieldV2(cookie.path.orEmpty()))
 			append("|")
 			append(cookie.expires?.timestamp ?: 0)
 			append("|")
@@ -172,23 +190,48 @@ class PersistentCookiesStorage(context: Context, userId: String? = null) : Cooki
 
 	private fun deserializeCookie(data: String): Cookie? {
 		return try {
-			val parts = data.split("|")
-			if (parts.size < 8) return null
-
-			Cookie(
-				name = parts[0],
-				value = parts[1],
-				encoding = CookieEncoding.RAW,
-				domain = parts[2].ifEmpty { null },
-				path = parts[3].ifEmpty { null },
-				expires = parts[4].toLongOrNull()?.let { GMTDate(it) },
-				maxAge = parts[5].toIntOrNull() ?: 0,
-				secure = parts[6].toBoolean(),
-				httpOnly = parts[7].toBoolean()
-			)
+			if (data.startsWith("$SERIALIZATION_VERSION_V2|")) {
+				deserializeCookieV2(data)
+			} else {
+				deserializeCookieLegacy(data)
+			}
 		} catch (e: Exception) {
 			Timber.e(e, "PersistentCookiesStorage: Error deserializing cookie")
 			null
 		}
+	}
+
+	private fun deserializeCookieV2(data: String): Cookie? {
+		val parts = data.split("|")
+		if (parts.size < 9) return null
+
+		return Cookie(
+			name = decodeCookieFieldV2(parts[1]),
+			value = decodeCookieFieldV2(parts[2]),
+			encoding = CookieEncoding.RAW,
+			domain = decodeCookieFieldV2(parts[3]).takeIf { it.isNotEmpty() },
+			path = decodeCookieFieldV2(parts[4]).takeIf { it.isNotEmpty() },
+			expires = parts[5].toLongOrNull()?.takeIf { it > 0L }?.let { GMTDate(it) },
+			maxAge = parts[6].toIntOrNull() ?: 0,
+			secure = parts[7].toBoolean(),
+			httpOnly = parts[8].toBoolean(),
+		)
+	}
+
+	private fun deserializeCookieLegacy(data: String): Cookie? {
+		val parts = data.split("|")
+		if (parts.size < 8) return null
+
+		return Cookie(
+			name = parts[0],
+			value = parts[1].replace("%7C", "|"),
+			encoding = CookieEncoding.RAW,
+			domain = decodeLegacyOptionalField(parts[2]),
+			path = decodeLegacyOptionalField(parts[3]),
+			expires = parts[4].toLongOrNull()?.takeIf { it > 0L }?.let { GMTDate(it) },
+			maxAge = parts[5].toIntOrNull() ?: 0,
+			secure = parts[6].toBoolean(),
+			httpOnly = parts[7].toBoolean(),
+		)
 	}
 }

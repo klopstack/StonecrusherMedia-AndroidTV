@@ -574,16 +574,6 @@ class PluginSyncService(
 		}
 	}
 
-	/**
-	 * Three-way merge using the last-synced snapshot as a common ancestor.
-	 *
-	 * For each syncable key:
-	 * - If local changed from snapshot but server didn't → use local
-	 * - If server changed from snapshot but local didn't → use server
-	 * - If both changed (conflict) → local wins
-	 * - If neither changed → use local (same value)
-	 * - If no snapshot exists (first sync) → server wins for all keys
-	 */
 	private fun mergeThreeWay(
 		local: Map<String, Any?>,
 		server: Map<String, Any?>,
@@ -591,45 +581,8 @@ class PluginSyncService(
 	): Map<String, Any?> {
 		if (snapshot.isEmpty()) {
 			Timber.d("$TAG: No snapshot — falling back to server-wins")
-			return local + server
 		}
-
-		val allKeys = (local.keys + server.keys + snapshot.keys)
-			.filter { it in PluginSyncConstants.ALL_SERVER_KEYS }
-			.toSet()
-
-		val merged = mutableMapOf<String, Any?>()
-		for (key in allKeys) {
-			val localVal = local[key]
-			val serverVal = server[key]
-			val snapshotVal = snapshot[key]
-
-			val localChanged = normalizeForComparison(localVal) != normalizeForComparison(snapshotVal)
-			val serverChanged = normalizeForComparison(serverVal) != normalizeForComparison(snapshotVal)
-
-			val chosen = when {
-				serverChanged && !localChanged -> {
-					Timber.d("$TAG: Merge [$key] → server (server changed, local same)")
-					serverVal
-				}
-				localChanged && serverChanged -> {
-					Timber.d("$TAG: Merge [$key] → local (conflict, local wins)")
-					localVal
-				}
-				else -> localVal
-			}
-			merged[key] = chosen
-		}
-		return merged
-	}
-
-	/**
-	 * Normalize a value to a comparable string form so that type mismatches
-	 * (e.g. Int 1 vs String "1", Boolean true vs String "true") don't cause
-	 * false "changed" detections during three-way merge.
-	 */
-	private fun normalizeForComparison(value: Any?): String {
-		return value?.toString() ?: ""
+		return PluginSyncMerge.mergeThreeWay(local, server, snapshot)
 	}
 
 	/**

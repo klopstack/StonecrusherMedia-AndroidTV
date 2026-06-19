@@ -1,0 +1,111 @@
+# ------------------------------------------------------------
+# Stonecrusher Android TV - PR artifact comment
+# ------------------------------------------------------------
+#
+# Triggered after App / Build completes. Runs in the base repo
+# context with pull-request write access and never checks out PR code.
+# ------------------------------------------------------------
+
+name: App / Build Comment
+
+on:
+  workflow_run:
+    workflows: [App / Build]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  comment:
+    name: Post PR artifact link
+    runs-on: ubuntu-24.04
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Post or update PR comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = '<!-- stonecrusher-pr-build -->';
+
+            let prNumber = run.pull_requests?.[0]?.number;
+            if (!prNumber) {
+              const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner,
+                repo,
+                commit_sha: run.head_sha,
+              });
+              const openPr = prs.find((pr) => pr.state === 'open');
+              if (!openPr) {
+                core.info('No open PR found for this workflow run; skipping comment.');
+                return;
+              }
+              prNumber = openPr.number;
+            }
+
+            const { data: { artifacts } } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: run.id,
+            });
+            const buildArtifact = artifacts.find((artifact) => artifact.name === 'build-artifacts');
+            if (!buildArtifact) {
+              core.warning('build-artifacts artifact not found; skipping comment.');
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${run.id}`;
+            const artifactsUrl = `${runUrl}#artifacts`;
+            const shortSha = run.head_sha.substring(0, 7);
+            const sizeMb = (buildArtifact.size_in_bytes / (1024 * 1024)).toFixed(1);
+
+            const body = [
+              marker,
+              '## PR build ready for testing',
+              '',
+              `A **github-release** APK was built successfully for commit \`${shortSha}\`.`,
+              '',
+              '| | |',
+              '|---|---|',
+              `| **Commit** | [\`${shortSha}\`](${run.head_repository.html_url}/commit/${run.head_sha}) |`,
+              `| **Workflow** | [App / Build #${run.run_number}](${runUrl}) |`,
+              `| **Artifact** | [\`${buildArtifact.name}\`](${artifactsUrl}) (${sizeMb} MB, retained 14 days) |`,
+              '',
+              '### Install',
+              '',
+              '1. Open the workflow run link above.',
+              '2. Under **Artifacts**, download **`build-artifacts`** (ZIP containing the APK).',
+              '3. Extract and sideload `stonecrusher-media-v*.apk` to your Android TV or Fire TV device.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
