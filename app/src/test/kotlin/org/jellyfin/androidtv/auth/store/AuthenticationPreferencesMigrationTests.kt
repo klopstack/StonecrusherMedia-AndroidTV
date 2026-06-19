@@ -94,12 +94,12 @@ private class InMemorySharedPreferences(
 	override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) = Unit
 
 	private inner class Editor : SharedPreferences.Editor {
-		private val pending = mutableMapOf<String, Any?>()
-		private val removals = mutableSetOf<String>()
+		private val pending = linkedMapOf<String, Any>()
+		private var clearAll = false
 
-		override fun putString(key: String, value: String?) = apply { pending[key] = value }
+		override fun putString(key: String, value: String?) = apply { pending[key] = value ?: "" }
 
-		override fun putStringSet(key: String, values: MutableSet<String>?) = apply { pending[key] = values }
+		override fun putStringSet(key: String, values: MutableSet<String>?) = apply { pending[key] = values ?: emptySet<String>() }
 
 		override fun putInt(key: String, value: Int) = apply { pending[key] = value }
 
@@ -109,10 +109,11 @@ private class InMemorySharedPreferences(
 
 		override fun putBoolean(key: String, value: Boolean) = apply { pending[key] = value }
 
-		override fun remove(key: String) = apply { removals.add(key) }
+		override fun remove(key: String) = apply { pending[key] = RemovedMarker }
 
 		override fun clear() = apply {
-			values.keys.toList().forEach { removals.add(it) }
+			clearAll = true
+			pending.clear()
 		}
 
 		override fun commit(): Boolean {
@@ -123,10 +124,15 @@ private class InMemorySharedPreferences(
 		override fun apply() = applyChanges()
 
 		private fun applyChanges() {
-			removals.forEach { values.remove(it) }
-			values.putAll(pending)
+			if (clearAll) values.clear()
+			pending.forEach { (key, value) ->
+				if (value === RemovedMarker) values.remove(key)
+				else values[key] = value
+			}
 			pending.clear()
-			removals.clear()
+			clearAll = false
 		}
 	}
+
+	private object RemovedMarker
 }
