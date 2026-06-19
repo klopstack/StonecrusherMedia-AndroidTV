@@ -97,12 +97,13 @@ class UserLoginQuickConnectFragment : Fragment() {
 						RequireSignInState -> binding.error.setText(R.string.login_invalid_credentials)
 						ServerUnavailableState,
 						is ApiClientErrorLoginState -> binding.error.setText(R.string.login_server_unavailable)
-						is AccessScheduleDeniedState -> AccessScheduleDeniedDialog.show(
-							requireContext(),
-							state.nextAccessMessage,
-						) {
-							binding.root.requestFocus()
-						}
+				is AccessScheduleDeniedState -> AccessScheduleDeniedDialog.show(
+					requireContext(),
+					state.nextAccessMessage,
+				) {
+					userLoginViewModel.clearLoginState()
+					binding.root.requestFocus()
+				}
 						// Do nothing because the activity will respond to the new session
 						AuthenticatedState -> Unit
 						// Not initialized

@@ -217,7 +217,7 @@ class MainActivity : FragmentActivity() {
 	}
 
 	private fun showAccessScheduleExpired() {
-		if (accessScheduleDialogShowing || isFinishing) return
+		if (accessScheduleDialogShowing || isFinishing || lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED).not()) return
 		accessScheduleDialogShowing = true
 
 		AccessScheduleDeniedDialog.show(

@@ -110,6 +110,7 @@ class ParentalControlsRepositoryImpl(
 
 	// In-memory cache for faster access
 	private var cachedRatings: List<String>? = null
+	@Volatile
 	private var accessSchedules: List<AccessSchedule> = emptyList()
 	
 	// Scope for observing session changes
