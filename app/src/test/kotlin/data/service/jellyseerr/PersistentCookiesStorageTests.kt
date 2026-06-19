@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.ktor.http.Cookie
 import io.ktor.http.CookieEncoding
 import io.ktor.http.Url
+import android.content.Context
 import kotlinx.coroutines.runBlocking
 
 class PersistentCookiesStorageTests : FunSpec({
@@ -58,6 +59,33 @@ class PersistentCookiesStorageTests : FunSpec({
 
 			val reloaded = PersistentCookiesStorage(context, "cookie-user-clear")
 			reloaded.get(requestUrl).shouldBeEmpty()
+		}
+	}
+
+	test("persists cookie values containing pipe and percent-encoded pipe sequences") {
+		runBlocking {
+			val trickyValue = "a|b%7Cc"
+			val storage = PersistentCookiesStorage(context, "cookie-user-tricky")
+			storage.addCookie(
+				requestUrl,
+				Cookie(name = "session", value = trickyValue, encoding = CookieEncoding.RAW),
+			)
+
+			val reloaded = PersistentCookiesStorage(context, "cookie-user-tricky")
+			reloaded.get(requestUrl).single().value shouldBe trickyValue
+		}
+	}
+
+	test("loads legacy pipe-delimited cookies written before v2 encoding") {
+		runBlocking {
+			val legacySerialized = "session|legacy%7Cvalue|-|/|0|0|false|false"
+			context.getSharedPreferences("jellyseerr_cookies_legacy-user", Context.MODE_PRIVATE)
+				.edit()
+				.putString("session_jellyseerr.example", legacySerialized)
+				.commit()
+
+			val storage = PersistentCookiesStorage(context, "legacy-user")
+			storage.get(requestUrl).single().value shouldBe "legacy|value"
 		}
 	}
 

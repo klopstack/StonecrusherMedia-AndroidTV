@@ -14,7 +14,7 @@ class JellyseerrHttpClientTests : FunSpec({
 	val context = createFakeContext()
 
 	afterEach {
-		runBlocking { JellyseerrHttpClient.clearCookies() }
+		runBlocking { clearJellyseerrCookiesForUsers(context, "test-user") }
 	}
 
 	test("getRequests fails on non-2xx via requireSuccessStatus") {

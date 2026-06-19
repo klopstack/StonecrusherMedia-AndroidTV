@@ -96,6 +96,12 @@ internal fun MockWebServer.enqueueJson(body: String, code: Int = 200) {
 
 internal fun MockWebServer.baseUrl(): String = url("/").toString().trimEnd('/')
 
+internal suspend fun clearJellyseerrCookiesForUsers(context: Context, vararg userIds: String) {
+	for (userId in userIds) {
+		PersistentCookiesStorage(context, userId).clearAll()
+	}
+}
+
 internal fun createJellyseerrClient(
 	context: Context,
 	server: MockWebServer,

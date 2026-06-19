@@ -12,6 +12,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.data.service.jellyseerr.JellyseerrHttpClient
 import org.jellyfin.androidtv.data.service.jellyseerr.baseUrl
+import org.jellyfin.androidtv.data.service.jellyseerr.clearJellyseerrCookiesForUsers
 import org.jellyfin.androidtv.data.service.jellyseerr.createFakeContext
 import org.jellyfin.androidtv.data.service.jellyseerr.enqueueJson
 import org.jellyfin.androidtv.preference.JellyseerrPreferences
@@ -51,7 +52,13 @@ class JellyseerrRepositoryTests : FunSpec({
 	}
 
 	afterEach {
-		runBlocking { JellyseerrHttpClient.clearCookies() }
+		runBlocking {
+			clearJellyseerrCookiesForUsers(
+				context,
+				"00000000-0000-0000-0000-000000000001",
+				"00000000-0000-0000-0000-000000000002",
+			)
+		}
 	}
 
 	test("testConnection delegates to initialized HTTP client") {
