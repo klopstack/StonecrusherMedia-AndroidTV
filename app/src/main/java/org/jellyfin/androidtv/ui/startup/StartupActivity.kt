@@ -229,19 +229,19 @@ class StartupActivity : FragmentActivity() {
 					userSettings[UserSettingPreferences.userPinEnabled] = true
 					userSettings[UserSettingPreferences.userPinSetupDeclined] = false
 					Toast.makeText(this, R.string.lbl_pin_code_set, Toast.LENGTH_SHORT).show()
-					syncUserSettingsToPlugin()
+					triggerPinSettingsSync()
 				}
 			}
 			AdminPinSetupAction.NOT_NOW -> {
 				userSettings[UserSettingPreferences.userPinSetupDeclined] = true
-				syncUserSettingsToPlugin()
+				triggerPinSettingsSync()
 			}
 			AdminPinSetupAction.DISMISSED -> Unit
 		}
 	}
 
-	private suspend fun syncUserSettingsToPlugin() {
-		withContext(Dispatchers.IO) {
+	private fun triggerPinSettingsSync() {
+		lifecycleScope.launch(Dispatchers.IO) {
 			runCatching { pluginSyncService.syncOnStartup() }
 				.onFailure { Timber.w(it, "Failed to sync PIN settings after login prompt action") }
 		}
