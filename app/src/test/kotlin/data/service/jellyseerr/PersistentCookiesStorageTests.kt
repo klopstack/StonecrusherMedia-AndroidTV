@@ -7,14 +7,14 @@ import io.kotest.matchers.shouldBe
 import io.ktor.http.Cookie
 import io.ktor.http.CookieEncoding
 import io.ktor.http.Url
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 
 class PersistentCookiesStorageTests : FunSpec({
 	val context = createFakeContext()
 	val requestUrl = Url("http://jellyseerr.example/api/v1/request")
 
 	test("persists and reloads cookies across storage instances") {
-		runTest {
+		runBlocking {
 			val storage = PersistentCookiesStorage(context, "cookie-user-1")
 			storage.addCookie(
 				requestUrl,
@@ -31,7 +31,7 @@ class PersistentCookiesStorageTests : FunSpec({
 	}
 
 	test("preserves URL-encoded connect.sid values with RAW encoding") {
-		runTest {
+		runBlocking {
 			val encodedSid = "s%3Aexpress-session-id%2Esignature"
 			val storage = PersistentCookiesStorage(context, "cookie-user-raw")
 			storage.addCookie(
@@ -48,7 +48,7 @@ class PersistentCookiesStorageTests : FunSpec({
 	}
 
 	test("clearAll removes persisted cookies before new instance loads") {
-		runTest {
+		runBlocking {
 			val storage = PersistentCookiesStorage(context, "cookie-user-clear")
 			storage.addCookie(
 				requestUrl,
@@ -62,7 +62,7 @@ class PersistentCookiesStorageTests : FunSpec({
 	}
 
 	test("DelegatingCookiesStorage isolates cookies per Jellyfin user") {
-		runTest {
+		runBlocking {
 			val delegating = DelegatingCookiesStorage(context)
 			delegating.switchToUser("user-a")
 			delegating.addCookie(

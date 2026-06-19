@@ -150,15 +150,25 @@ class PersistentCookiesStorage(context: Context, userId: String? = null) : Cooki
 		return urlPath.startsWith(cookiePath)
 	}
 
+	private fun encodeCookieField(value: String?) = when {
+		value.isNullOrEmpty() -> "-"
+		else -> value.replace("|", "%7C")
+	}
+
+	private fun decodeCookieField(value: String) = when (value) {
+		"-", "" -> null
+		else -> value.replace("%7C", "|")
+	}
+
 	private fun serializeCookie(cookie: Cookie): String {
 		return buildString {
 			append(cookie.name)
 			append("|")
-			append(cookie.value)
+			append(cookie.value.replace("|", "%7C"))
 			append("|")
-			append(cookie.domain ?: "")
+			append(encodeCookieField(cookie.domain))
 			append("|")
-			append(cookie.path ?: "")
+			append(encodeCookieField(cookie.path))
 			append("|")
 			append(cookie.expires?.timestamp ?: 0)
 			append("|")
@@ -177,11 +187,11 @@ class PersistentCookiesStorage(context: Context, userId: String? = null) : Cooki
 
 			Cookie(
 				name = parts[0],
-				value = parts[1],
+				value = parts[1].replace("%7C", "|"),
 				encoding = CookieEncoding.RAW,
-				domain = parts[2].ifEmpty { null },
-				path = parts[3].ifEmpty { null },
-				expires = parts[4].toLongOrNull()?.let { GMTDate(it) },
+				domain = decodeCookieField(parts[2]),
+				path = decodeCookieField(parts[3]),
+				expires = parts[4].toLongOrNull()?.takeIf { it > 0L }?.let { GMTDate(it) },
 				maxAge = parts[5].toIntOrNull() ?: 0,
 				secure = parts[6].toBoolean(),
 				httpOnly = parts[7].toBoolean()
