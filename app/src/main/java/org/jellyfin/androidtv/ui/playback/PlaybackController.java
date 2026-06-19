@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import org.jellyfin.androidtv.R;
 import org.jellyfin.androidtv.auth.repository.SessionRepository;
 import org.jellyfin.androidtv.data.compat.PlaybackException;
+import org.jellyfin.androidtv.data.repository.AccessScheduleRepository;
 import org.jellyfin.androidtv.data.compat.StreamInfo;
 import org.jellyfin.androidtv.data.compat.VideoOptions;
 import org.jellyfin.androidtv.data.model.DataRefreshService;
@@ -33,6 +34,7 @@ import org.jellyfin.androidtv.util.UUIDUtils;
 import org.jellyfin.androidtv.util.Utils;
 import org.jellyfin.androidtv.util.apiclient.ReportingHelper;
 import org.jellyfin.androidtv.util.apiclient.Response;
+import org.koin.java.KoinJavaComponent;
 import org.jellyfin.androidtv.util.profile.DeviceProfileKt;
 import org.jellyfin.androidtv.util.sdk.ApiClientFactory;
 import org.jellyfin.androidtv.util.sdk.compat.JavaCompat;
@@ -827,6 +829,11 @@ public class PlaybackController implements PlaybackControllerNotifiable {
             PlaybackException ex = (PlaybackException) exception;
             switch (ex.getErrorCode()) {
                 case NOT_ALLOWED:
+                    AccessScheduleRepository accessScheduleRepository =
+                            KoinJavaComponent.<AccessScheduleRepository>get(AccessScheduleRepository.class);
+                    if (accessScheduleRepository.isCurrentlyDenied()) {
+                        accessScheduleRepository.requestBlockedOverlay();
+                    }
                     Utils.showToast(mFragment.getContext(), mFragment.getString(R.string.msg_playback_not_allowed));
                     break;
                 case NO_COMPATIBLE_STREAM:

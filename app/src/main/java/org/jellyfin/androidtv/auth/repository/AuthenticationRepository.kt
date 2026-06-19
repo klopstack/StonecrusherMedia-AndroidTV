@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import org.jellyfin.androidtv.BuildConfig
+import org.jellyfin.androidtv.auth.model.AccessScheduleDeniedLoginState
 import org.jellyfin.androidtv.auth.model.ApiClientErrorLoginState
 import org.jellyfin.androidtv.auth.model.AuthenticateMethod
 import org.jellyfin.androidtv.auth.model.AuthenticatedState
@@ -20,10 +22,13 @@ import org.jellyfin.androidtv.auth.model.QuickConnectAuthenticateMethod
 import org.jellyfin.androidtv.auth.model.RequireSignInState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerUnavailableState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedLoginState
 import org.jellyfin.androidtv.auth.model.ServerVersionNotSupported
 import org.jellyfin.androidtv.auth.model.User
 import org.jellyfin.androidtv.auth.store.AuthenticationPreferences
 import org.jellyfin.androidtv.auth.store.AuthenticationStore
+import org.jellyfin.androidtv.data.repository.AccessScheduleRepository
+import org.jellyfin.androidtv.data.repository.AccessScheduleStatus
 import org.jellyfin.androidtv.data.repository.JellyseerrRepository
 import org.jellyfin.androidtv.preference.JellyseerrPreferences
 import org.jellyfin.androidtv.util.apiclient.JellyfinImage
@@ -67,6 +72,7 @@ class AuthenticationRepositoryImpl(
 	private val jellyseerrRepository: JellyseerrRepository,
 	private val jellyseerrPreferences: JellyseerrPreferences,
 	private val embyApiClient: EmbyApiClient,
+	private val accessScheduleRepository: AccessScheduleRepository,
 ) : AuthenticationRepository {
 	override fun authenticate(server: Server, method: AuthenticateMethod): Flow<LoginState> {
 		return when (method) {
@@ -89,7 +95,23 @@ class AuthenticationRepositoryImpl(
 		else flowOf(RequireSignInState)
 	}
 
+	private fun resolveSessionSetupFailure(server: Server): Flow<LoginState> = flow {
+		when {
+			!server.isSupportedByBuild -> emit(ServerTypeNotSupportedLoginState(server))
+			!server.versionSupported -> emit(ServerVersionNotSupported(server))
+			accessScheduleRepository.hasPendingLoginDenied() -> {
+				val nextAccess = accessScheduleRepository.consumeLoginDenied()
+				emit(AccessScheduleDeniedLoginState(nextAccess))
+			}
+			else -> emit(RequireSignInState)
+		}
+	}
+
 	private fun authenticateCredential(server: Server, username: String, password: String) = flow {
+		if (server.serverType == ServerType.EMBY && !BuildConfig.EMBY_ENABLED) {
+			emit(ServerTypeNotSupportedLoginState(server))
+			return@flow
+		}
 		if (server.serverType == ServerType.EMBY) {
 			emitAll(authenticateCredentialEmby(server, username, password))
 			return@flow
@@ -106,7 +128,11 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to sign in as $username")
-			emit(ApiClientErrorLoginState(err))
+			if (accessScheduleRepository.isScheduleRelatedApiError(err)) {
+				emit(AccessScheduleDeniedLoginState(null))
+			} else {
+				emit(ApiClientErrorLoginState(err))
+			}
 			return@flow
 		}
 
@@ -127,7 +153,11 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to sign in with Quick Connect secret")
-			emit(ApiClientErrorLoginState(err))
+			if (accessScheduleRepository.isScheduleRelatedApiError(err)) {
+				emit(AccessScheduleDeniedLoginState(null))
+			} else {
+				emit(ApiClientErrorLoginState(err))
+			}
 			return@flow
 		}
 
@@ -147,13 +177,23 @@ class AuthenticationRepositoryImpl(
 		)
 
 		authenticateFinish(server, userInfo, accessToken)
+
+		if (server.serverType == ServerType.JELLYFIN) {
+			when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(userInfo.policy)) {
+				is AccessScheduleStatus.Denied -> {
+					emit(AccessScheduleDeniedLoginState(scheduleStatus.nextAccessStart))
+					return@flow
+				}
+				AccessScheduleStatus.Allowed -> Unit
+			}
+		}
+
 		val success = setActiveSession(user, server)
 		if (success) {
 			emit(AuthenticatedState)
 		} else {
 			Timber.w("Failed to set active session after authenticating")
-			if (!server.versionSupported) emit(ServerVersionNotSupported(server))
-			else emit(RequireSignInState)
+			emitAll(resolveSessionSetupFailure(server))
 		}
 	}.flowOn(Dispatchers.IO)
 
@@ -162,8 +202,7 @@ class AuthenticationRepositoryImpl(
 
 		val success = setActiveSession(user, server)
 		if (!success) {
-			if (!server.versionSupported) emit(ServerVersionNotSupported(server))
-			else emit(RequireSignInState)
+			emitAll(resolveSessionSetupFailure(server))
 		} else try {
 			if (server.serverType == ServerType.EMBY) {
 				val embyUser = embyApiClient.validateCurrentUser()
@@ -180,7 +219,11 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to get current user data")
-			emit(ApiClientErrorLoginState(err))
+			if (accessScheduleRepository.isScheduleRelatedApiError(err)) {
+				emit(AccessScheduleDeniedLoginState(null))
+			} else {
+				emit(ApiClientErrorLoginState(err))
+			}
 		} catch (err: Exception) {
 			Timber.e(err, "Unable to get current user data")
 			emit(RequireSignInState)
@@ -252,8 +295,7 @@ class AuthenticationRepositoryImpl(
 		val success = setActiveSession(user, server)
 		if (success) emit(AuthenticatedState)
 		else {
-			if (!server.versionSupported) emit(ServerVersionNotSupported(server))
-			else emit(RequireSignInState)
+			emitAll(resolveSessionSetupFailure(server))
 		}
 	}.flowOn(Dispatchers.IO)
 

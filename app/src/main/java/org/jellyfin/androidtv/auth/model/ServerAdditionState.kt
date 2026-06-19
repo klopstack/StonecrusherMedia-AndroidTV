@@ -7,4 +7,5 @@ import java.util.UUID
 sealed class ServerAdditionState
 data class ConnectingState(val address: String) : ServerAdditionState()
 data class UnableToConnectState(val addressCandidates: Map<String, Collection<RecommendedServerIssue>>) : ServerAdditionState()
+data class ServerTypeNotSupportedState(val serverType: org.moonfin.server.core.model.ServerType) : ServerAdditionState()
 data class ConnectedState(val id: UUID, val publicInfo: PublicSystemInfo) : ServerAdditionState()

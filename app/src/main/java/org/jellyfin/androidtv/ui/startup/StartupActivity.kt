@@ -28,10 +28,13 @@ import org.jellyfin.androidtv.StonecrusherApplication
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepositoryState
 import org.jellyfin.androidtv.auth.repository.UserRepository
+import org.jellyfin.androidtv.data.repository.AccessScheduleRepository
 import org.jellyfin.androidtv.databinding.ActivityStartupBinding
 import org.jellyfin.androidtv.ui.background.AppBackground
 import org.jellyfin.androidtv.ui.browsing.MainActivity
@@ -39,6 +42,7 @@ import org.jellyfin.androidtv.ui.itemhandling.ItemLauncher
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.MediaManager
+import org.jellyfin.androidtv.ui.startup.fragment.AccessScheduleDeniedFragment
 import org.jellyfin.androidtv.ui.startup.fragment.SelectServerFragment
 import org.jellyfin.androidtv.ui.startup.fragment.ServerFragment
 import org.jellyfin.androidtv.ui.startup.fragment.SplashFragment
@@ -50,6 +54,7 @@ import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
+import java.time.ZoneId
 import java.util.UUID
 
 class StartupActivity : FragmentActivity() {
@@ -66,6 +71,7 @@ class StartupActivity : FragmentActivity() {
 	private val userRepository: UserRepository by inject()
 	private val navigationRepository: NavigationRepository by inject()
 	private val itemLauncher: ItemLauncher by inject()
+	private val accessScheduleRepository: AccessScheduleRepository by inject()
 
 	private lateinit var binding: ActivityStartupBinding
 
@@ -125,6 +131,15 @@ class StartupActivity : FragmentActivity() {
 			} else {
 				// Clear audio queue in case left over from last run
 				mediaManager.clearAudioQueue()
+
+				if (accessScheduleRepository.hasPendingLoginDenied()) {
+					val nextAccess = accessScheduleRepository.consumeLoginDenied()
+					lifecycleScope.launch {
+						val server = startupViewModel.getLastServer()
+						showAccessScheduleDenied(nextAccess, server?.id)
+					}
+					return@onEach
+				}
 
 				val server = startupViewModel.getLastServer()
 				when {
@@ -188,6 +203,19 @@ class StartupActivity : FragmentActivity() {
 		}
 	}
 
+	private fun showAccessScheduleDenied(nextAccessStart: java.time.LocalDateTime?, serverId: UUID?) = supportFragmentManager.commit {
+		val args = bundleOf()
+		serverId?.let { args.putString(AccessScheduleDeniedFragment.ARG_SERVER_ID, it.toString()) }
+		nextAccessStart?.let {
+			args.putLong(
+				AccessScheduleDeniedFragment.ARG_NEXT_ACCESS_EPOCH_MILLIS,
+				it.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+			)
+		}
+		replace<AccessScheduleDeniedFragment>(R.id.content_view, null, args)
+		replace<StartupToolbarFragment>(R.id.toolbar_view)
+	}
+
 	private fun showServer(id: UUID) = supportFragmentManager.commit {
 		replace<ServerFragment>(
 			R.id.content_view, null, bundleOf(
@@ -213,6 +241,14 @@ class StartupActivity : FragmentActivity() {
 					Toast.makeText(
 						this@StartupActivity,
 						R.string.server_connection_failed,
+						Toast.LENGTH_LONG,
+					).show()
+					showServerSelection()
+				}
+				is ServerTypeNotSupportedState -> {
+					Toast.makeText(
+						this@StartupActivity,
+						getString(R.string.server_type_not_supported, state.serverType.displayName(this@StartupActivity)),
 						Toast.LENGTH_LONG,
 					).show()
 					showServerSelection()

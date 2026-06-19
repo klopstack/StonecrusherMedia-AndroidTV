@@ -46,6 +46,7 @@ import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.navigation.NavigationRepositoryImpl
 import org.jellyfin.androidtv.ui.shuffle.ShuffleManager
 import org.jellyfin.androidtv.ui.playback.PlaybackControllerContainer
+import org.jellyfin.androidtv.ui.AccessScheduleViewModel
 import org.jellyfin.androidtv.ui.playback.nextup.NextUpViewModel
 import org.jellyfin.androidtv.ui.playback.segment.MediaSegmentRepository
 import org.jellyfin.androidtv.ui.playback.segment.MediaSegmentRepositoryImpl
@@ -191,6 +192,9 @@ val appModule = module {
 	single<org.jellyfin.androidtv.data.repository.ParentalControlsRepository> {
 		org.jellyfin.androidtv.data.repository.ParentalControlsRepositoryImpl(androidContext(), get(), get())
 	}
+	single<org.jellyfin.androidtv.data.repository.AccessScheduleRepository> {
+		org.jellyfin.androidtv.data.repository.AccessScheduleRepositoryImpl(get())
+	}
 
 	// Jellyseerr - Global preferences (server URL, UI settings)
 	single(named("global")) { JellyseerrPreferences(androidContext()) }
@@ -200,11 +204,12 @@ val appModule = module {
 	single { MdbListRepository(get<OkHttpFactory>().createClient(get()), get()) }
 	single { TmdbRepository(get<OkHttpFactory>().createClient(get()), get(), get()) }
 
+	viewModel { AccessScheduleViewModel(get(), get(), get(), get(), get()) }
 	viewModel { StartupViewModel(get(), get(), get(), get()) }
 	viewModel { UserLoginViewModel(get(), get(), get(), get(defaultDeviceInfo)) }
 	viewModel { ServerAddViewModel(get()) }
-	viewModel { NextUpViewModel(get(), get(), get()) }
-	viewModel { StillWatchingViewModel(get(), get(), get(), get()) }
+	viewModel { NextUpViewModel(get(), get(), get(), get()) }
+	viewModel { StillWatchingViewModel(get<Context>(), get(), get(), get(), get()) }
 	viewModel { PhotoPlayerViewModel(get()) }
 	viewModel { SearchViewModel(get(), get(), get(named("global")), get(), get()) }
 	viewModel { DreamViewModel(get(), get(), get(), get(), get()) }

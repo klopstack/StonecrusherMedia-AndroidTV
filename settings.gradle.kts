@@ -2,6 +2,11 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "stonecrusher-media-androidtv"
 
+val embyEnabled: Boolean = providers.gradleProperty("moonfin.emby.enabled")
+	.orElse(providers.environmentVariable("MOONFIN_EMBY_ENABLED"))
+	.map { it.toBooleanStrictOrNull() ?: false }
+	.getOrElse(false)
+
 pluginManagement {
 	repositories {
 		gradlePluginPortal()
@@ -25,6 +30,11 @@ include(":server:emby")
 include(":playback:core")
 include(":playback:jellyfin")
 include(":playback:emby")
+
+if (!embyEnabled) {
+	project(":server:emby").projectDir = file("server/emby-stub")
+	project(":playback:emby").projectDir = file("playback/emby-stub")
+}
 include(":playback:media3:exoplayer")
 include(":playback:media3:session")
 include(":preference")

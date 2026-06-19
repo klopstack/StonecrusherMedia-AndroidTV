@@ -367,6 +367,12 @@
     <string name="server_connection_failed">Unable to connect to server</string>
     <string name="server_connection_failed_candidates">Unable to connect to server, tried the following addresses: %1$s</string>
     <string name="server_field_empty">The address cannot be empty</string>
+    <string name="access_schedule_denied_title">Time\'s up!</string>
+    <string name="access_schedule_denied_message">You\'re not allowed to use the app right now. Parental control time limits are in effect for this account.</string>
+    <string name="access_schedule_resumes_today">Access starts again today at %1$s</string>
+    <string name="access_schedule_resumes_tomorrow">Access starts again tomorrow at %1$s</string>
+    <string name="access_schedule_resumes_on_day">Access starts again on %1$s at %2$s</string>
+    <string name="access_schedule_back_to_users">Back to users</string>
     <string name="login_authenticating">Authenticating…</string>
     <string name="login_invalid_credentials">Invalid username and/or password</string>
     <string name="login_server_unavailable">Unable to connect to server</string>
@@ -599,6 +605,10 @@
     <string name="live_tv_preferences">Live TV options</string>
     <string name="app_notification_uimode_invalid">This app is optimized for televisions. We recommend using our mobile app on other devices.</string>
     <string name="server_unsupported_notification">This server uses Jellyfin version %1$s which is unsupported. Please update to Jellyfin %2$s or newer to continue using the app.</string>
+    <string name="server_type_not_supported">This app build does not support %1$s servers.</string>
+    <string name="server_type_not_supported_notification">This app build does not support %1$s servers.</string>
+    <string name="server_type_jellyfin">Jellyfin</string>
+    <string name="server_type_emby">Emby</string>
     <string name="pref_telemetry_category">Crash reporting</string>
     <string name="pref_telemetry_description">Send crash reports, include logs</string>
     <string name="pref_crash_reports">Send crash reports to server</string>

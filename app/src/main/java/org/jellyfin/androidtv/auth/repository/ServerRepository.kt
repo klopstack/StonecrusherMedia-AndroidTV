@@ -9,11 +9,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.auth.model.AuthenticationStoreServer
 import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerAdditionState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
 import org.jellyfin.androidtv.auth.store.AuthenticationStore
 import org.jellyfin.androidtv.util.sdk.toServer
@@ -148,6 +150,11 @@ class ServerRepositoryImpl(
 
 			val id = systemInfo.id!!.toUUID()
 			val serverType = ServerType.detect(systemInfo.productName, systemInfo.version)
+			if (serverType == ServerType.EMBY && !BuildConfig.EMBY_ENABLED) {
+				Timber.w("Rejected Emby server at %s — Emby support is disabled in this build", chosenRecommendation.address)
+				emit(ServerTypeNotSupportedState(ServerType.EMBY))
+				return@flow
+			}
 			val defaultName = systemInfo.serverName ?: systemInfo.productName ?: "Server"
 
 			val server = authenticationStore.getServer(id)?.copy(
@@ -183,7 +190,7 @@ class ServerRepositoryImpl(
 				} == true
 			}
 
-			if (embyCandidate != null) {
+			if (embyCandidate != null && BuildConfig.EMBY_ENABLED) {
 				val systemInfo = embyCandidate.systemInfo.getOrThrow()
 				val api = jellyfin.createApi(embyCandidate.address)
 				val branding = api.getBrandingOptionsOrDefault()

@@ -2,6 +2,7 @@ package org.jellyfin.androidtv.util
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.auth.model.Server
 import org.moonfin.server.core.feature.ServerFeature
 import org.moonfin.server.core.model.ServerType
@@ -73,10 +74,16 @@ class FeatureSupportTests : FunSpec({
 	test("Emby server supports Emby features") {
 		val server = embyServer()
 
-		server.supportsFeature(ServerFeature.WATCH_PARTY) shouldBe true
-		server.supportsFeature(ServerFeature.BIF_TRICKPLAY) shouldBe true
-		server.supportsFeature(ServerFeature.EMBY_CONNECT) shouldBe true
-		server.supportsFeature(ServerFeature.JELLYSEERR) shouldBe true
+		if (BuildConfig.EMBY_ENABLED) {
+			server.supportsFeature(ServerFeature.WATCH_PARTY) shouldBe true
+			server.supportsFeature(ServerFeature.BIF_TRICKPLAY) shouldBe true
+			server.supportsFeature(ServerFeature.EMBY_CONNECT) shouldBe true
+			server.supportsFeature(ServerFeature.JELLYSEERR) shouldBe true
+		} else {
+			ServerFeature.entries.forEach { feature ->
+				server.supportsFeature(feature) shouldBe false
+			}
+		}
 	}
 
 	test("Emby server does not support Jellyfin-only features") {
@@ -90,8 +97,8 @@ class FeatureSupportTests : FunSpec({
 		server.supportsFeature(ServerFeature.CLIENT_LOG) shouldBe false
 	}
 
-	test("JELLYSEERR is supported by both server types") {
+	test("JELLYSEERR is supported by Jellyfin and enabled Emby builds") {
 		jellyfinServer().supportsFeature(ServerFeature.JELLYSEERR) shouldBe true
-		embyServer().supportsFeature(ServerFeature.JELLYSEERR) shouldBe true
+		embyServer().supportsFeature(ServerFeature.JELLYSEERR) shouldBe BuildConfig.EMBY_ENABLED
 	}
 })

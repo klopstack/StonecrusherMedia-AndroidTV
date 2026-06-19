@@ -170,5 +170,20 @@ class EmbyApiClient(
 
     suspend fun logout() = runCatching { sessionsService?.postSessionsLogout() }
 
+    suspend fun getPublicUsers(): List<EmbyUserInfo> {
+        val users = userService!!.getUsersPublic().body()
+        return users.mapNotNull { dto ->
+            val id = dto.id ?: return@mapNotNull null
+            EmbyUserInfo(
+                id = id,
+                name = dto.name,
+                serverId = dto.serverId,
+                primaryImageTag = dto.primaryImageTag,
+                hasPassword = dto.hasPassword,
+                hasConfiguredPassword = dto.hasConfiguredPassword,
+            )
+        }
+    }
+
     val isConfigured: Boolean get() = baseUrl.isNotEmpty() && accessToken != null
 }
