@@ -799,7 +799,7 @@ class MediaDetailsFragment : Fragment() {
 					) {
 						DetailActionButton(
 							label = requestLabel,
-							icon = ImageVector.vectorResource(R.drawable.ic_select_quality),
+							icon = ImageVector.vectorResource(R.drawable.ic_megaphone),
 							onClick = {
 								if (canRequestAny) {
 									handleRequestClick(canRequestHd, canRequest4k, hdStatus, status4k)
