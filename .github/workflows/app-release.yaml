@@ -49,8 +49,19 @@ jobs:
             echo "keyPassword=${KEY_PASSWORD}"
           } > keystore.properties
           ls -la release.keystore keystore.properties
+      - name: Resolve release tag
+        env:
+          RAW_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          RELEASE_TAG="${RAW_RELEASE_TAG#refs/tags/}"
+          if [[ "$RELEASE_TAG" != v* ]]; then
+            echo "::error::Release tag must start with 'v' (e.g. v1.8.3). Got: $RELEASE_TAG"
+            exit 1
+          fi
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
       - name: Assemble GitHub release APK
-        run: ./gradlew assembleGithubRelease
+        run: ./gradlew assembleGithubRelease -Pstonecrusher.version="$VERSION"
       - name: Stage release APK
         run: |
           mkdir -p build/gh-app-publish/
@@ -58,7 +69,6 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             echo "Release ${RELEASE_TAG} already exists; uploading APK assets"
