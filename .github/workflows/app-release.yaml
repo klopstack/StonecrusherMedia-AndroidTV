@@ -53,6 +53,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          RELEASE_TAG="${RELEASE_TAG#refs/tags/}"
+          if [[ "$RELEASE_TAG" != v* ]]; then
+            echo "::error::Release tag must start with 'v' (e.g. v1.8.3). Got: $RELEASE_TAG"
+            exit 1
+          fi
           VERSION="${RELEASE_TAG#v}"
           ./gradlew assembleGithubRelease -Pstonecrusher.version="$VERSION"
       - name: Stage release APK
