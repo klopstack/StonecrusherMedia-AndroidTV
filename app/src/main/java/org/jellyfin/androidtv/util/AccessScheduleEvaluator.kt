@@ -77,9 +77,14 @@ object AccessScheduleEvaluator {
 		return latestEnd?.takeIf { it.isAfter(now) }
 	}
 
-	private fun hourFromDouble(hour: Double): Int = hour.toInt()
+	private fun timeFromDouble(hour: Double): Pair<Int, Int> {
+		val totalMinutes = kotlin.math.round(hour * 60).toInt().coerceIn(0, 23 * 60 + 59)
+		return totalMinutes / 60 to totalMinutes % 60
+	}
 
-	private fun minuteFromDouble(hour: Double): Int = ((hour - hour.toInt()) * 60).toInt()
+	private fun hourFromDouble(hour: Double): Int = timeFromDouble(hour).first
+
+	private fun minuteFromDouble(hour: Double): Int = timeFromDouble(hour).second
 
 	fun formatNextAccessMessage(context: Context, nextStart: LocalDateTime?, now: LocalDateTime = LocalDateTime.now()): String? {
 		if (nextStart == null) return null

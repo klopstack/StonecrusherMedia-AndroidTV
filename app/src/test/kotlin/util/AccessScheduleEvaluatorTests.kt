@@ -134,4 +134,18 @@ class AccessScheduleEvaluatorTests : FunSpec({
 		val next = AccessScheduleEvaluator.getNextAccessStart(p, now)
 		next shouldBe LocalDateTime.of(2026, 6, 18, 8, 0)
 	}
+
+	test("getNextAccessStart handles fractional hours without minute overflow") {
+		val p = policy(listOf(schedule(DynamicDayOfWeek.EVERYDAY, 8.5, 20.0)))
+		val now = LocalDateTime.of(2026, 6, 18, 7, 0)
+		val next = AccessScheduleEvaluator.getNextAccessStart(p, now)
+		next shouldBe LocalDateTime.of(2026, 6, 18, 8, 30)
+	}
+
+	test("getNextAccessStart rounds near-hour floating point values safely") {
+		val p = policy(listOf(schedule(DynamicDayOfWeek.EVERYDAY, 8.999999, 20.0)))
+		val now = LocalDateTime.of(2026, 6, 18, 7, 0)
+		val next = AccessScheduleEvaluator.getNextAccessStart(p, now)
+		next shouldBe LocalDateTime.of(2026, 6, 18, 9, 0)
+	}
 })

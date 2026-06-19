@@ -200,17 +200,49 @@ class AuthenticationRepositoryImpl(
 	private fun authenticateToken(server: Server, user: User) = flow {
 		emit(AuthenticatingState)
 
+		val accessToken = user.accessToken.orEmpty()
+		var prefetchedUserInfo: UserDto? = null
+		if (server.serverType == ServerType.JELLYFIN) {
+			val api = jellyfin.createApi(
+				server.address,
+				accessToken = accessToken,
+				deviceInfo = defaultDeviceInfo.forUser(user.id),
+			)
+			try {
+				val userInfo = api.userApi.getCurrentUser().content
+				prefetchedUserInfo = userInfo
+				when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(userInfo.policy)) {
+					is AccessScheduleStatus.Denied -> {
+						emit(AccessScheduleDeniedLoginState(scheduleStatus.nextAccessStart))
+						return@flow
+					}
+					AccessScheduleStatus.Allowed -> Unit
+				}
+			} catch (err: TimeoutException) {
+				Timber.e(err, "Failed to connect to server")
+				emit(ServerUnavailableState)
+				return@flow
+			} catch (err: ApiClientException) {
+				Timber.e(err, "Unable to get current user data")
+				if (accessScheduleRepository.isScheduleRelatedApiError(err)) {
+					emit(AccessScheduleDeniedLoginState(null))
+				} else {
+					emit(ApiClientErrorLoginState(err))
+				}
+				return@flow
+			}
+		}
+
 		val success = setActiveSession(user, server)
 		if (!success) {
 			emitAll(resolveSessionSetupFailure(server))
 		} else try {
 			if (server.serverType == ServerType.EMBY) {
 				val embyUser = embyApiClient.validateCurrentUser()
-				authenticateFinishEmby(server, embyUser, user.accessToken.orEmpty(), user.id)
+				authenticateFinishEmby(server, embyUser, accessToken, user.id)
 			} else {
-				// Update user info
-				val userInfo by userApiClient.userApi.getCurrentUser()
-				authenticateFinish(server, userInfo, user.accessToken.orEmpty())
+				val userInfo = prefetchedUserInfo ?: userApiClient.userApi.getCurrentUser().content
+				authenticateFinish(server, userInfo, accessToken)
 			}
 			emit(AuthenticatedState)
 		} catch (err: TimeoutException) {
