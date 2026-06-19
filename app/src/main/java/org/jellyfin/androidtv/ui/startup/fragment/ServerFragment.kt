@@ -33,12 +33,14 @@ import org.jellyfin.androidtv.auth.model.ServerVersionNotSupported
 import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.auth.model.User
 import org.jellyfin.androidtv.auth.repository.AuthenticationRepository
+import org.jellyfin.androidtv.auth.repository.ProfileProvisioningRepository
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.ServerUserRepository
 import org.jellyfin.androidtv.data.service.BackgroundService
 import org.jellyfin.androidtv.databinding.FragmentServerBinding
 import org.jellyfin.androidtv.ui.card.UserCardView
 import org.jellyfin.androidtv.ui.startup.PinEntryDialog
+import org.jellyfin.androidtv.ui.startup.ProfileSetupDialog
 import org.jellyfin.androidtv.ui.startup.StartupViewModel
 import org.jellyfin.androidtv.util.ListAdapter
 import org.jellyfin.androidtv.util.MarkdownRenderer
@@ -47,6 +49,7 @@ import org.jellyfin.androidtv.util.setServerTypeIcon
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import org.moonfin.server.core.model.ServerType
 
 class ServerFragment : Fragment() {
 	companion object {
@@ -57,6 +60,7 @@ class ServerFragment : Fragment() {
 	private val markdownRenderer: MarkdownRenderer by inject()
 	private val authenticationRepository: AuthenticationRepository by inject()
 	private val serverUserRepository: ServerUserRepository by inject()
+	private val profileProvisioningRepository: ProfileProvisioningRepository by inject()
 	private val backgroundService: BackgroundService by inject()
 	private var _binding: FragmentServerBinding? = null
 	private val binding get() = _binding!!
@@ -119,7 +123,12 @@ class ServerFragment : Fragment() {
 		binding.editButton.setOnClickListener {
 			binding.actionsContainer.isVisible = true
 			binding.editButton.isVisible = false
+			binding.setupProfilesButton.isVisible = server.serverType == ServerType.JELLYFIN
 			binding.addUserButton.requestFocus()
+		}
+
+		binding.setupProfilesButton.setOnClickListener {
+			setupAllProfiles(server)
 		}
 
 		startupViewModel.loadUsers(server)
@@ -140,6 +149,25 @@ class ServerFragment : Fragment() {
 		super.onDestroyView()
 
 		_binding = null
+	}
+
+	private fun setupAllProfiles(server: Server) {
+		val progressDialog = ProfileSetupDialog.showProgress(requireContext())
+
+		lifecycleScope.launch {
+			val result = profileProvisioningRepository.provisionAllProfiles(server)
+			progressDialog.dismiss()
+
+			result.fold(
+				onSuccess = { summary ->
+					ProfileSetupDialog.showResult(requireContext(), summary)
+					startupViewModel.loadUsers(server)
+				},
+				onFailure = { error ->
+					ProfileSetupDialog.showError(requireContext(), error)
+				},
+			)
+		}
 	}
 
 	private fun showPinEntry(server: Server, user: User) {

@@ -126,6 +126,17 @@
                 android:orientation="horizontal">
 
                 <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/setup_profiles_button"
+                    style="@style/Button.Default"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="12dp"
+                    android:drawableStart="@drawable/ic_user_add"
+                    android:text="@string/setup_all_profiles"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+
+                <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/add_user_button"
                     style="@style/Button.Default"
                     android:layout_width="wrap_content"
