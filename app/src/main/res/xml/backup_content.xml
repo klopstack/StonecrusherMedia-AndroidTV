@@ -21,7 +21,9 @@
         domain="sharedpref"
         path="authentication" />
 
-    <!-- Jellyseerr prefs contain API keys and passwords — excluded for security -->
+    <!-- Jellyseerr prefs contain API keys and passwords — excluded for security.
+         Per-user jellyseerr_prefs_$userId files are also excluded: the include rules
+         above form an allowlist, and backup paths do not support wildcards. -->
     <exclude
         domain="sharedpref"
         path="jellyseerr_prefs" />
