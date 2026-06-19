@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.R
+import org.jellyfin.androidtv.auth.model.AccessScheduleDeniedLoginState
 import org.jellyfin.androidtv.auth.model.ApiClientErrorLoginState
 import org.jellyfin.androidtv.auth.model.AuthenticatedState
 import org.jellyfin.androidtv.auth.model.AuthenticatingState
@@ -28,7 +29,9 @@ import org.jellyfin.androidtv.auth.model.PrivateUser
 import org.jellyfin.androidtv.auth.model.RequireSignInState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerUnavailableState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedLoginState
 import org.jellyfin.androidtv.auth.model.ServerVersionNotSupported
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.auth.model.User
 import org.jellyfin.androidtv.auth.repository.AuthenticationRepository
 import org.jellyfin.androidtv.auth.repository.ServerRepository
@@ -45,6 +48,7 @@ import org.jellyfin.androidtv.util.setServerTypeIcon
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import java.time.ZoneId
 
 class ServerFragment : Fragment() {
 	companion object {
@@ -181,6 +185,7 @@ class ServerFragment : Fragment() {
 					UserLoginFragment.ARG_SERVER_ID to server.id.toString(),
 					UserLoginFragment.ARG_USERNAME to user.name,
 				))
+				is AccessScheduleDeniedLoginState -> navigateToAccessScheduleDenied(state.nextAccessStart, server)
 				// Errors
 				ServerUnavailableState,
 				is ApiClientErrorLoginState -> Toast.makeText(context, R.string.server_connection_failed, Toast.LENGTH_LONG).show()
@@ -193,6 +198,12 @@ class ServerFragment : Fragment() {
 						ServerRepository.recommendedServerVersion.toString()
 					),
 					Toast.LENGTH_LONG
+				).show()
+
+				is ServerTypeNotSupportedLoginState -> Toast.makeText(
+					context,
+					getString(R.string.server_type_not_supported, state.server.serverType.displayName(requireContext())),
+					Toast.LENGTH_LONG,
 				).show()
 			}
 		}.launchIn(lifecycleScope)
@@ -219,7 +230,13 @@ class ServerFragment : Fragment() {
 			navigateFragment<SelectServerFragment>(keepToolbar = true)
 		}
 
-		if (!server.versionSupported) {
+		if (!server.isSupportedByBuild) {
+			binding.notification.isVisible = true
+			binding.notification.text = getString(
+				R.string.server_type_not_supported_notification,
+				server.serverType.displayName(requireContext()),
+			)
+		} else if (!server.versionSupported) {
 			binding.notification.isVisible = true
 			binding.notification.text = getString(
 				R.string.server_unsupported_notification,
@@ -232,6 +249,19 @@ class ServerFragment : Fragment() {
 		} else {
 			binding.notification.isGone = true
 		}
+	}
+
+	private fun navigateToAccessScheduleDenied(nextAccessStart: java.time.LocalDateTime?, server: Server) {
+		val args = bundleOf(
+			AccessScheduleDeniedFragment.ARG_SERVER_ID to server.id.toString(),
+		)
+		nextAccessStart?.let {
+			args.putLong(
+				AccessScheduleDeniedFragment.ARG_NEXT_ACCESS_EPOCH_MILLIS,
+				it.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+			)
+		}
+		navigateFragment<AccessScheduleDeniedFragment>(args)
 	}
 
 	private inline fun <reified F : Fragment> navigateFragment(

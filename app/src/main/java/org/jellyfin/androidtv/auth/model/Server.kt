@@ -1,5 +1,6 @@
 package org.jellyfin.androidtv.auth.model
 
+import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.sdk.model.ServerVersion
 import org.moonfin.server.core.model.ServerType
@@ -27,6 +28,15 @@ data class Server(
 				ServerType.EMBY -> sv >= ServerRepository.minimumEmbyVersion
 			}
 		}
+
+	val isSupportedByBuild: Boolean
+		get() = when (serverType) {
+			ServerType.JELLYFIN -> true
+			ServerType.EMBY -> BuildConfig.EMBY_ENABLED
+		}
+
+	val isSupported: Boolean
+		get() = isSupportedByBuild && versionSupported
 
 	operator fun compareTo(other: ServerVersion): Int = serverVersion?.compareTo(other) ?: -1
 

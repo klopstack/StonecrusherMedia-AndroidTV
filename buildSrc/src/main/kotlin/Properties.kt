@@ -9,3 +9,8 @@ fun Project.getProperty(name: String): String? {
 
 	return findProperty(name)?.toString() ?: System.getenv(environmentName) ?: null
 }
+
+fun Project.getBooleanProperty(name: String, default: Boolean = false): Boolean =
+	getProperty(name)?.toBooleanStrictOrNull() ?: default
+
+const val EMBY_ENABLED_PROPERTY = "moonfin.emby.enabled"

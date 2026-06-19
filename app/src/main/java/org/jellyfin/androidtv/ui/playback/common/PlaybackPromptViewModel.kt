@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.jellyfin.androidtv.data.repository.AccessScheduleRepository
 import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.preference.constant.NextUpBehavior
 import org.jellyfin.androidtv.util.apiclient.JellyfinImage
@@ -41,6 +42,7 @@ abstract class PlaybackPromptViewModel<S : Enum<S>>(
 	private val context: Context,
 	private val api: ApiClient,
 	private val userPreferences: UserPreferences,
+	private val accessScheduleRepository: AccessScheduleRepository,
 	private val initialState: S,
 	private val noDataState: S,
 ) : ViewModel() {
@@ -48,6 +50,9 @@ abstract class PlaybackPromptViewModel<S : Enum<S>>(
 	private val _item = MutableStateFlow<PlaybackPromptItemData?>(null)
 	val item: StateFlow<PlaybackPromptItemData?> = _item
 	
+	private val _accessDenied = MutableStateFlow(false)
+	val accessDenied: StateFlow<Boolean> = _accessDenied
+
 	private val _state = MutableStateFlow(initialState)
 	val state: StateFlow<S> = _state
 	
@@ -101,8 +106,12 @@ abstract class PlaybackPromptViewModel<S : Enum<S>>(
 			)
 		}
 	} catch (e: InvalidStatusException) {
-		// Handle HTTP errors gracefully (404 = item not found, 5xx = server errors)
-		if (e.status == 404) {
+		if (accessScheduleRepository.isCurrentlyDenied() &&
+			(accessScheduleRepository.isScheduleRelatedApiError(e) || e.status == 403)
+		) {
+			_accessDenied.value = true
+			accessScheduleRepository.requestBlockedOverlay()
+		} else if (e.status == 404) {
 			Timber.w("Item $id not found on server (possibly deleted)")
 		} else if (e.status in 500..599) {
 			Timber.w("Server error ${e.status} while loading item $id")

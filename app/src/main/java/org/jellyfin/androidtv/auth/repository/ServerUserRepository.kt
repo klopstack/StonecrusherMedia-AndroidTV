@@ -2,6 +2,7 @@ package org.jellyfin.androidtv.auth.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.auth.model.PrivateUser
 import org.jellyfin.androidtv.auth.model.PublicUser
 import org.jellyfin.androidtv.auth.model.Server
@@ -69,6 +70,8 @@ class ServerUserRepositoryImpl(
 	}
 
 	private suspend fun getEmbyPublicUsers(server: Server): List<PublicUser> {
+		if (!BuildConfig.EMBY_ENABLED) return emptyList()
+
 		return try {
 			val tempClient = EmbyApiClient(
 				appVersion = "1.0.0",
@@ -77,13 +80,12 @@ class ServerUserRepositoryImpl(
 				deviceName = "AndroidTV",
 			)
 			tempClient.configure(server.address, null, null)
-			val userService = tempClient.userService ?: return emptyList()
 
 			val users = withContext(Dispatchers.IO) {
-				userService.getUsersPublic().body()
+				tempClient.getPublicUsers()
 			}
 			users.mapNotNull { dto ->
-				val id = dto.id?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return@mapNotNull null
+				val id = runCatching { UUID.fromString(dto.id) }.getOrNull() ?: return@mapNotNull null
 				val name = dto.name ?: return@mapNotNull null
 				PublicUser(
 					id = id,

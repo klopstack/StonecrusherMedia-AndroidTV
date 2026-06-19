@@ -9,6 +9,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -30,10 +32,12 @@ import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.data.service.UpdateCheckerService
 import org.jellyfin.androidtv.data.syncplay.SyncPlayManager
 import org.jellyfin.androidtv.databinding.ActivityMainBinding
+import org.jellyfin.androidtv.ui.AccessScheduleViewModel
 import org.jellyfin.androidtv.integration.LeanbackChannelWorker
 import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.ui.InteractionTrackerViewModel
 import org.jellyfin.androidtv.ui.background.AppBackground
+import org.jellyfin.androidtv.ui.navigation.ActivityDestinations
 import org.jellyfin.androidtv.ui.navigation.NavigationAction
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
@@ -52,6 +56,7 @@ class MainActivity : FragmentActivity() {
 	private val sessionRepository by inject<SessionRepository>()
 	private val userRepository by inject<UserRepository>()
 	private val interactionTrackerViewModel by viewModel<InteractionTrackerViewModel>()
+	private val accessScheduleViewModel by viewModel<AccessScheduleViewModel>()
 	private val workManager by inject<WorkManager>()
 	private val updateCheckerService by inject<UpdateCheckerService>()
 	private val userPreferences by inject<UserPreferences>()
@@ -111,6 +116,22 @@ class MainActivity : FragmentActivity() {
 				ExitConfirmationDialog(
 					onConfirm = { finish() },
 					onDismiss = { showExitDialog.value = false },
+				)
+			}
+
+			val showAccessBlocked by accessScheduleViewModel.showBlockedOverlay.collectAsState()
+			val blockedTitle by accessScheduleViewModel.blockedTitle.collectAsState()
+			val blockedMessage by accessScheduleViewModel.blockedMessage.collectAsState()
+			if (showAccessBlocked) {
+				AccessScheduleBlockedDialog(
+					title = blockedTitle,
+					message = blockedMessage,
+					onConfirm = {
+						accessScheduleViewModel.dismissBlockedOverlay()
+						sessionRepository.destroyCurrentSession()
+						startActivity(ActivityDestinations.startup(this@MainActivity))
+						finish()
+					},
 				)
 			}
 		}
