@@ -36,7 +36,8 @@ fun partitionUserViews(views: List<BaseItemDto>): Pair<List<BaseItemDto>, List<B
 	val primary = PRIMARY_LIBRARY_TYPES.mapNotNull { type ->
 		views.firstOrNull { it.collectionType == type }
 	}
-	val additional = views.filter { !isPrimaryLibraryType(it.collectionType) }
+	val primaryIds = primary.mapNotNull { it.id }.toSet()
+	val additional = views.filter { it.id !in primaryIds }
 	return primary to additional
 }
 
