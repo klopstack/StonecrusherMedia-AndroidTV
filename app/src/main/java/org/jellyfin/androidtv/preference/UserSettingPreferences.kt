@@ -126,6 +126,11 @@ class UserSettingPreferences(
 		 * Whether PIN is enabled for this user
 		 */
 		val userPinEnabled = booleanPreference("user_pin_enabled", false)
+
+		/**
+		 * Whether the user explicitly declined the login-time PIN setup prompt.
+		 */
+		val userPinSetupDeclined = booleanPreference("user_pin_setup_declined", false)
 	}
 
 	private val json = Json { 

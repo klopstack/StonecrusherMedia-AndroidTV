@@ -482,6 +482,9 @@
     <string name="lbl_pin_auto_submit">Auto-submit PIN</string>
     <string name="lbl_pin_auto_submit_description">Submit automatically when the 4th digit is entered</string>
     <string name="lbl_forgot_pin">Forgot PIN?</string>
+    <string name="lbl_admin_pin_setup_title">Set up admin PIN</string>
+    <string name="lbl_admin_pin_setup_message">For shared TVs, administrators should protect their profile with a PIN.</string>
+    <string name="lbl_not_now">Not now</string>
     <string name="select_version">Version</string>
     <string name="select_version_title">Select Version</string>
     <string name="lbl_version_number">Version %1$d</string>

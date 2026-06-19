@@ -531,7 +531,8 @@ class PluginSyncService(
 		}
 
 		for (sp in PluginSyncConstants.USER_SETTING_PREFERENCES) {
-			map[sp.serverKey] = readPreference(userSettingPreferences, sp)
+			val store = getUserSettingStore(sp) ?: continue
+			map[sp.serverKey] = readPreference(store, sp)
 		}
 
 		val jellyseerrPrefs = getJellyseerrPrefs()
@@ -560,7 +561,11 @@ class PluginSyncService(
 
 				when {
 					key in userPrefKeys -> writePreference(userPreferences, userPrefKeys[key]!!, value)
-					key in userSettingPrefKeys -> writePreference(userSettingPreferences, userSettingPrefKeys[key]!!, value)
+					key in userSettingPrefKeys -> {
+						val syncPreference = userSettingPrefKeys[key]!!
+						val store = getUserSettingStore(syncPreference) ?: continue
+						writePreference(store, syncPreference, value)
+					}
 					key in jellyseerrPrefKeys && jellyseerrPrefs != null -> writePreference(jellyseerrPrefs, jellyseerrPrefKeys[key]!!, value)
 				}
 			}
@@ -635,9 +640,11 @@ class PluginSyncService(
 		unregisterChangeListeners()
 
 		pushScope = CoroutineScope(Dispatchers.IO)
+		val perUserPinKeys = PluginSyncStoreSelector.perUserUserSettingKeys
 
-		val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+		val globalListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
 			if (key == null || key !in PluginSyncConstants.ALL_LOCAL_KEYS) return@OnSharedPreferenceChangeListener
+			if (key in perUserPinKeys) return@OnSharedPreferenceChangeListener
 			if (!userPreferences[UserPreferences.pluginSyncEnabled]) return@OnSharedPreferenceChangeListener
 			if (!serverAvailable) return@OnSharedPreferenceChangeListener
 
@@ -645,12 +652,26 @@ class PluginSyncService(
 			scheduleDebouncedPush()
 		}
 
-		registerListenerOnStore(userPreferences, listener)
-		registerListenerOnStore(userSettingPreferences, listener)
+		val perUserPinListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+			if (key == null || key !in perUserPinKeys) return@OnSharedPreferenceChangeListener
+			if (!userPreferences[UserPreferences.pluginSyncEnabled]) return@OnSharedPreferenceChangeListener
+			if (!serverAvailable) return@OnSharedPreferenceChangeListener
+
+			Timber.d("$TAG: Syncable per-user PIN preference changed: $key — scheduling push")
+			scheduleDebouncedPush()
+		}
+
+		registerListenerOnStore(userPreferences, globalListener)
+		registerListenerOnStore(userSettingPreferences, globalListener)
+
+		val perUserStore = getPerUserUserSettingPreferences()
+		if (perUserStore != null) {
+			registerListenerOnStore(perUserStore, perUserPinListener)
+		}
 
 		val jellyseerrPrefs = getJellyseerrPrefs()
 		if (jellyseerrPrefs != null) {
-			registerListenerOnStore(jellyseerrPrefs, listener)
+			registerListenerOnStore(jellyseerrPrefs, globalListener)
 		}
 
 		Timber.d("$TAG: Change listeners registered")
@@ -912,5 +933,18 @@ class PluginSyncService(
 	private fun getJellyseerrPrefs(): JellyseerrPreferences? {
 		val userId = userRepository.currentUser.value?.id?.toString() ?: return null
 		return JellyseerrPreferences.migrateToUserPreferences(context, userId)
+	}
+
+	private fun getPerUserUserSettingPreferences(): UserSettingPreferences? {
+		val userId = userRepository.currentUser.value?.id ?: return null
+		return UserSettingPreferences(context, userId)
+	}
+
+	private fun getUserSettingStore(syncablePreference: SyncablePreference<*>): SharedPreferenceStore? {
+		if (!PluginSyncStoreSelector.usePerUserUserSettingStore(syncablePreference)) {
+			return userSettingPreferences
+		}
+
+		return getPerUserUserSettingPreferences()
 	}
 }

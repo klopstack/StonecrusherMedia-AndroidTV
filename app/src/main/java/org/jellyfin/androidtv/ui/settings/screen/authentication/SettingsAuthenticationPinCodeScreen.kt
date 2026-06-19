@@ -92,6 +92,7 @@ fun SettingsAuthenticationPinCodeScreen() {
 								val hash = PinCodeUtil.hashPin(pin)
 								userSettingPreferences[UserSettingPreferences.userPinHash] = hash
 								userSettingPreferences[UserSettingPreferences.userPinEnabled] = true
+								userSettingPreferences[UserSettingPreferences.userPinSetupDeclined] = false
 								Toast.makeText(context, R.string.lbl_pin_code_set, Toast.LENGTH_SHORT).show()
 								refreshTrigger++
 							}
@@ -121,6 +122,7 @@ fun SettingsAuthenticationPinCodeScreen() {
 											if (newPin != null) {
 												val hash = PinCodeUtil.hashPin(newPin)
 												userSettingPreferences[UserSettingPreferences.userPinHash] = hash
+												userSettingPreferences[UserSettingPreferences.userPinSetupDeclined] = false
 												Toast.makeText(context, R.string.lbl_pin_code_changed, Toast.LENGTH_SHORT).show()
 												refreshTrigger++
 											}

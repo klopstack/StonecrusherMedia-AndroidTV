@@ -1,6 +1,7 @@
 package org.jellyfin.androidtv.ui.startup
 
 import android.Manifest
+import android.app.AlertDialog
 import android.app.SearchManager
 import android.content.Intent
 import android.os.Bundle
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.StonecrusherApplication
@@ -35,18 +37,22 @@ import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepositoryState
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.data.repository.AccessScheduleRepository
+import org.jellyfin.androidtv.data.service.pluginsync.PluginSyncService
 import org.jellyfin.androidtv.databinding.ActivityStartupBinding
+import org.jellyfin.androidtv.preference.UserSettingPreferences
 import org.jellyfin.androidtv.ui.background.AppBackground
 import org.jellyfin.androidtv.ui.browsing.MainActivity
 import org.jellyfin.androidtv.ui.itemhandling.ItemLauncher
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.MediaManager
+import org.jellyfin.androidtv.ui.startup.PinEntryDialog.Mode.SET
 import org.jellyfin.androidtv.ui.startup.fragment.AccessScheduleDeniedFragment
 import org.jellyfin.androidtv.ui.startup.fragment.SelectServerFragment
 import org.jellyfin.androidtv.ui.startup.fragment.ServerFragment
 import org.jellyfin.androidtv.ui.startup.fragment.SplashFragment
 import org.jellyfin.androidtv.ui.startup.fragment.StartupToolbarFragment
+import org.jellyfin.androidtv.util.PinCodeUtil
 import org.jellyfin.androidtv.util.applyTheme
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
@@ -56,6 +62,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.coroutines.resume
 
 class StartupActivity : FragmentActivity() {
 	companion object {
@@ -71,9 +78,11 @@ class StartupActivity : FragmentActivity() {
 	private val userRepository: UserRepository by inject()
 	private val navigationRepository: NavigationRepository by inject()
 	private val itemLauncher: ItemLauncher by inject()
+	private val pluginSyncService: PluginSyncService by inject()
 	private val accessScheduleRepository: AccessScheduleRepository by inject()
 
 	private lateinit var binding: ActivityStartupBinding
+	private var hasHandledAdminPinPrompt = false
 
 	private val networkPermissionsRequester = registerForActivityResult(
 		ActivityResultContracts.RequestMultiplePermissions()
@@ -151,6 +160,8 @@ class StartupActivity : FragmentActivity() {
 		}.launchIn(lifecycleScope)
 
 	private suspend fun openNextActivity() {
+		maybePromptAdminPinSetup()
+
 		val itemId = when {
 			intent.action == Intent.ACTION_VIEW && intent.data != null -> intent.data.toString()
 			else -> intent.getStringExtra(EXTRA_ITEM_ID)
@@ -191,6 +202,84 @@ class StartupActivity : FragmentActivity() {
 		Timber.i("Opening next activity $intent")
 		startActivity(intent)
 		finishAfterTransition()
+	}
+
+	private suspend fun maybePromptAdminPinSetup() {
+		if (hasHandledAdminPinPrompt) return
+
+		val currentUser = userRepository.currentUser.value ?: return
+		val userId = currentUser.id ?: return
+		val userSettings = UserSettingPreferences(this, userId)
+
+		val shouldPrompt = AdminPinSetupPromptPolicy.shouldPrompt(
+			isAdministrator = currentUser.policy?.isAdministrator == true,
+			userPinHash = userSettings[UserSettingPreferences.userPinHash],
+			userPinEnabled = userSettings[UserSettingPreferences.userPinEnabled],
+			userPinSetupDeclined = userSettings[UserSettingPreferences.userPinSetupDeclined],
+		)
+
+		hasHandledAdminPinPrompt = true
+		if (!shouldPrompt) return
+
+		when (showAdminPinSetupChoiceDialog()) {
+			AdminPinSetupAction.SET_UP_PIN -> {
+				val pin = showSetPinDialog()
+				if (!pin.isNullOrEmpty()) {
+					userSettings[UserSettingPreferences.userPinHash] = PinCodeUtil.hashPin(pin)
+					userSettings[UserSettingPreferences.userPinEnabled] = true
+					userSettings[UserSettingPreferences.userPinSetupDeclined] = false
+					Toast.makeText(this, R.string.lbl_pin_code_set, Toast.LENGTH_SHORT).show()
+					triggerPinSettingsSync()
+				}
+			}
+			AdminPinSetupAction.NOT_NOW -> {
+				userSettings[UserSettingPreferences.userPinSetupDeclined] = true
+				triggerPinSettingsSync()
+			}
+			AdminPinSetupAction.DISMISSED -> Unit
+		}
+	}
+
+	private fun triggerPinSettingsSync() {
+		lifecycleScope.launch(Dispatchers.IO) {
+			runCatching { pluginSyncService.syncOnStartup() }
+				.onFailure { Timber.w(it, "Failed to sync PIN settings after login prompt action") }
+		}
+	}
+
+	private suspend fun showSetPinDialog(): String? = suspendCancellableCoroutine { continuation ->
+		PinEntryDialog.show(
+			context = this,
+			mode = SET,
+			onComplete = { pin ->
+				if (continuation.isActive) continuation.resume(pin)
+			}
+		)
+	}
+
+	private suspend fun showAdminPinSetupChoiceDialog(): AdminPinSetupAction = suspendCancellableCoroutine { continuation ->
+		val dialog = AlertDialog.Builder(this)
+			.setTitle(R.string.lbl_admin_pin_setup_title)
+			.setMessage(R.string.lbl_admin_pin_setup_message)
+			.setPositiveButton(R.string.lbl_set_pin_code) { _, _ ->
+				if (continuation.isActive) continuation.resume(AdminPinSetupAction.SET_UP_PIN)
+			}
+			.setNegativeButton(R.string.lbl_not_now) { _, _ ->
+				if (continuation.isActive) continuation.resume(AdminPinSetupAction.NOT_NOW)
+			}
+			.setOnCancelListener {
+				if (continuation.isActive) continuation.resume(AdminPinSetupAction.DISMISSED)
+			}
+			.create()
+
+		continuation.invokeOnCancellation { dialog.dismiss() }
+		dialog.show()
+	}
+
+	private enum class AdminPinSetupAction {
+		SET_UP_PIN,
+		NOT_NOW,
+		DISMISSED,
 	}
 
 	// Fragment switching

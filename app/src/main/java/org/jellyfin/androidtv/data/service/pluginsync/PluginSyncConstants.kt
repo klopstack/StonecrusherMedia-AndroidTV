@@ -27,7 +27,7 @@ object PluginSyncConstants {
 	 * Snapshot schema version. Increment when server key mappings change to
 	 * force a snapshot reset on the next sync (server-wins fallback).
 	 */
-	const val SNAPSHOT_VERSION = 3
+	const val SNAPSHOT_VERSION = 4
 
 	/** Key stored inside [SNAPSHOT_PREFS_NAME] to track the snapshot schema version. */
 	const val SNAPSHOT_VERSION_KEY = "_snapshot_version"
@@ -75,6 +75,9 @@ object PluginSyncConstants {
 		// Parental Controls
 		SyncablePreference(UserSettingPreferences.userPinEnabled, SyncType.BOOLEAN, "userPinEnabled"),
 		SyncablePreference(UserSettingPreferences.userPinHash, SyncType.STRING, "userPinHash"),
+		SyncablePreference(UserSettingPreferences.userPinSetupDeclined, SyncType.BOOLEAN, "userPinSetupDeclined"),
+		// Moonfin server plugin must persist/return all three per-user PIN keys:
+		// userPinHash, userPinEnabled, userPinSetupDeclined.
 	)
 
 	/** Preference keys from [JellyseerrPreferences] that should be synced. */
@@ -121,3 +124,15 @@ data class SyncablePreference<T : Any>(
 	val type: SyncType,
 	val serverKey: String,
 )
+
+object PluginSyncStoreSelector {
+	val perUserUserSettingKeys: Set<String> = setOf(
+		UserSettingPreferences.userPinEnabled.key,
+		UserSettingPreferences.userPinHash.key,
+		UserSettingPreferences.userPinSetupDeclined.key,
+	)
+
+	fun usePerUserUserSettingStore(syncablePreference: SyncablePreference<*>): Boolean {
+		return syncablePreference.preference.key in perUserUserSettingKeys
+	}
+}
