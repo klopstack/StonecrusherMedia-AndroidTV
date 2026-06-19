@@ -139,6 +139,10 @@ class SessionRepositoryImpl(
 			authenticationPreferences[AuthenticationPreferences.lastServerId] = session.serverId.toString()
 			authenticationPreferences[AuthenticationPreferences.lastUserId] = session.userId.toString()
 
+			// Check if server version is supported before mutating shared client state
+			server = serverRepository.getServer(session.serverId, true)
+			if (server == null || !server.isSupported) return false
+
 			// Pre-register interceptor so early API calls (e.g. Branding) are patched
 			val storeServer = authenticationStore.getServer(session.serverId)
 			if (storeServer != null && storeServer.serverType == ServerType.EMBY) {
@@ -146,10 +150,6 @@ class SessionRepositoryImpl(
 				embyCompatInterceptor.setUserId(session.userId.toString())
 				embyCompatInterceptor.registerEmbyServer(storeServer.address, session.userId.toString(), session.accessToken)
 			}
-
-			// Check if server version is supported
-			server = serverRepository.getServer(session.serverId, true)
-			if (server == null || !server.isSupported) return false
 		}
 
 		val deviceInfo = session?.let { defaultDeviceInfo.forUser(it.userId) } ?: defaultDeviceInfo

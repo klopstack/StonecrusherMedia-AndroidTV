@@ -11,7 +11,7 @@ import java.util.jar.JarEntry
 import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 
-val embyEnabled = project.getBooleanProperty("moonfin.emby.enabled")
+val embyEnabled = project.getBooleanProperty(EMBY_ENABLED_PROPERTY)
 
 android {
 	namespace = "org.jellyfin.androidtv"

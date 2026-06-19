@@ -199,7 +199,7 @@ class ServerFragment : Fragment() {
 
 				is ServerTypeNotSupportedLoginState -> Toast.makeText(
 					context,
-					getString(R.string.server_type_not_supported, state.server.serverType.displayName()),
+					getString(R.string.server_type_not_supported, state.server.serverType.displayName(requireContext())),
 					Toast.LENGTH_LONG,
 				).show()
 			}
@@ -231,7 +231,7 @@ class ServerFragment : Fragment() {
 			binding.notification.isVisible = true
 			binding.notification.text = getString(
 				R.string.server_type_not_supported_notification,
-				server.serverType.displayName(),
+				server.serverType.displayName(requireContext()),
 			)
 		} else if (!server.versionSupported) {
 			binding.notification.isVisible = true

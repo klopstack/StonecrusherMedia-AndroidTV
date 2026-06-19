@@ -96,7 +96,7 @@ class ServerAddFragment : Fragment() {
 					binding.confirm.isEnabled = true
 					binding.error.text = getString(
 						R.string.server_type_not_supported,
-						state.serverType.displayName(),
+						state.serverType.displayName(requireContext()),
 					)
 				}
 

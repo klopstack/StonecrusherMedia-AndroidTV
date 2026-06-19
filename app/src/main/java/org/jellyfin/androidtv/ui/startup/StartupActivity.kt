@@ -222,7 +222,7 @@ class StartupActivity : FragmentActivity() {
 				is ServerTypeNotSupportedState -> {
 					Toast.makeText(
 						this@StartupActivity,
-						getString(R.string.server_type_not_supported, state.serverType.displayName()),
+						getString(R.string.server_type_not_supported, state.serverType.displayName(this@StartupActivity)),
 						Toast.LENGTH_LONG,
 					).show()
 					showServerSelection()

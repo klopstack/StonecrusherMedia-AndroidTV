@@ -90,7 +90,7 @@ class UserLoginCredentialsFragment : Fragment() {
 						is ServerTypeNotSupportedLoginState -> binding.error.setText(
 							getString(
 								R.string.server_type_not_supported,
-								state.server.serverType.displayName(),
+								state.server.serverType.displayName(requireContext()),
 							)
 						)
 
