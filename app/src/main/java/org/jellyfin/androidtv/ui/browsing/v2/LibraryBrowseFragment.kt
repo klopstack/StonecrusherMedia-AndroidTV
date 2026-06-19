@@ -533,7 +533,7 @@ class LibraryBrowseFragment : Fragment() {
 				val cellHeight = cardHeight.dp + 16.dp
 				val rowCount = (availableHeight / cellHeight).toInt().coerceAtLeast(2)
 				val gridHeight = cardHeight.dp * rowCount + 16.dp * (rowCount - 1)
-				val verticalPadding = (maxHeight - gridHeight) / 2
+				val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(0.dp)
 
 				LazyHorizontalGrid(
 					rows = GridCells.Fixed(rowCount),
@@ -559,7 +559,7 @@ class LibraryBrowseFragment : Fragment() {
 				val cellWidth = cardWidth.dp + itemSpacing
 				val columnCount = (availableWidth / cellWidth).toInt().coerceAtLeast(1)
 				val gridWidth = cardWidth.dp * columnCount + itemSpacing * (columnCount - 1)
-				val horizontalPadding = (maxWidth - gridWidth) / 2
+				val horizontalPadding = ((maxWidth - gridWidth) / 2).coerceAtLeast(0.dp)
 
 				LazyVerticalGrid(
 					columns = GridCells.Fixed(columnCount),
