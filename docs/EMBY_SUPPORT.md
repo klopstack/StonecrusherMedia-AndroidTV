@@ -1,20 +1,33 @@
 # Emby Server Support
 
-Stonecrusher Media supports Emby Server **4.8.0.0 and newer** as a first-class server backend alongside Jellyfin. Both server types can be used simultaneously in multi-server configurations.
+> **Status: disabled by default.** Official releases of Stonecrusher Media are Jellyfin-only.
+> Emby integration remains in the repository for optional local builds but is not tested
+> or supported in default builds.
 
-## Supported Versions
+Emby support can be re-enabled for development by setting `moonfin.emby.enabled=true` in
+[`gradle.properties`](../gradle.properties). That switches the build from lightweight stub
+modules to the full `server/emby` and `playback/emby` implementations.
+
+## Supported Versions (when enabled)
 
 | Emby Version | Status |
 |--------------|--------|
-| 4.9.x | Fully tested, recommended |
-| 4.8.x | Supported |
+| 4.9.x | Previously tested, recommended when experimenting locally |
+| 4.8.x | Supported in code, not validated in CI |
 | < 4.8.0.0 | Not supported |
 
 ## Server Detection
 
-When adding a server, Stonecrusher Media automatically detects whether it is running Jellyfin or Emby by querying the `/System/Info/Public` endpoint. No manual configuration is required. The detected server type is stored with the server entry and used for all subsequent connections.
+When Emby support is enabled, the app detects Jellyfin vs Emby by querying
+`/System/Info/Public`. The detected server type is stored with the server entry.
+
+When Emby support is **disabled** (the default), Emby servers are rejected during setup
+and existing Emby server entries are treated as unsupported.
 
 ## Feature Compatibility Matrix
+
+This matrix describes behavior when `moonfin.emby.enabled=true`. With the default
+disabled build, only the Jellyfin column applies.
 
 | Feature | Jellyfin | Emby | Notes |
 |---------|----------|------|-------|
@@ -60,7 +73,7 @@ When adding a server, Stonecrusher Media automatically detects whether it is run
 | Library change notifications | Yes | Yes | Similar message types |
 | SyncPlay (group watch) | Yes | No | Emby uses incompatible "Party" protocol |
 | **Other** | | | |
-| Multi-server | Yes | Yes | Mix of Jellyfin and Emby servers supported |
+| Multi-server | Yes | Yes* | *Only when Emby support is enabled at build time |
 | Theme music | Yes | Yes | Identical |
 | Client log upload | Yes | No | Jellyfin-only |
 | Home screen channels | Yes | Yes | Uses common item abstraction |
@@ -68,51 +81,27 @@ When adding a server, Stonecrusher Media automatically detects whether it is run
 | External player | Yes | Yes | Stream URL adapts per server type |
 | Seerr | Yes | No | Requires Jellyfin server for auth |
 
+## Enabling Emby for Local Development
+
+1. Set `moonfin.emby.enabled=true` in `gradle.properties`
+2. Sync Gradle and rebuild
+3. Connect to an Emby Server 4.8.0.0 or newer
+
+The full implementation lives in `server/emby/` and `playback/emby/`. With the flag set to
+`false`, Gradle redirects those module paths to no-op stubs in `server/emby-stub/` and
+`playback/emby-stub/`.
+
 ## Feature Gating
 
-Features that are not available on Emby are automatically hidden from the UI when connected to an Emby server. This includes:
-
-- SyncPlay menu items and controls
-- Media segment skip buttons (intro/credits)
-- Lyrics display
-- Trickplay seek preview thumbnails
-- Client log upload option
-
-No manual configuration is needed. The feature set adapts automatically based on the connected server type.
-
-## ID Format Differences
-
-Jellyfin uses UUID-format IDs (`550e8400-e29b-41d4-a716-446655440000`) while Emby uses numeric IDs (`12345`). Stonecrusher Media handles this transparently:
-
-- The `EmbyCompatInterceptor` converts between formats in API requests and responses
-- Numeric Emby IDs are mapped to deterministic UUIDs for internal consistency
-- No user-visible difference in behavior
-
-## Image Caching
-
-Emby image URLs include an `api_key` query parameter for authentication. Stonecrusher Media strips this parameter from Coil cache keys so that image caches survive token rotation. The `tag` parameter is preserved as a cache buster for content changes.
-
-## WebSocket Reconnection
-
-The Emby WebSocket client uses exponential backoff with random jitter to avoid thundering herd problems when multiple clients reconnect after a network interruption. The maximum number of reconnect attempts is 12, after which the connection state transitions to `ServerUnreachable`.
-
-## API Response Caching
-
-The following Emby API responses are cached in memory with a 5-minute TTL to reduce redundant network requests:
-
-| API | Cache Scope | Invalidation |
-|-----|-------------|-------------|
-| User views (library sections) | Per user ID | Manual via `invalidateCache()`, session change |
-| Display preferences | Per (id, userId, client) | Updated on save, manual via `invalidateCache()` |
+When connected to an Emby server (enabled builds only), Jellyfin-only features are hidden
+automatically: SyncPlay, media segment skip, lyrics, trickplay thumbnails, and client log
+upload.
 
 ## Known Limitations
 
+- **Disabled by default** — not included in official release builds
 - **Emby Connect** (cloud account linking) is not yet supported
-- **BIF trickplay** (seek preview thumbnails) uses a different format than Jellyfin and is not yet implemented
-- **QuickConnect** on Emby uses a different API than Jellyfin and is not yet supported
+- **BIF trickplay** (seek preview thumbnails) uses a different format than Jellyfin
+- **QuickConnect** on Emby uses a different API than Jellyfin
 - **SyncPlay** is Jellyfin-only; Emby's "Watch Party" uses an incompatible protocol
-- **Seerr** integration requires a Jellyfin server for authentication and does not work with Emby-only setups
-
-## Telemetry
-
-When connected to an Emby server, crash reports include the server type (`emby`) and server version in a dedicated "Server information" section. This helps diagnose server-specific issues. No personally identifiable server information (URLs, tokens, user IDs) is included.
+- **Seerr** integration requires a Jellyfin server for authentication

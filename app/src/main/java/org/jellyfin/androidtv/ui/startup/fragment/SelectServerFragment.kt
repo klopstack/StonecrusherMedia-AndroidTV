@@ -38,7 +38,9 @@ import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.model.ServerAdditionState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
 import org.jellyfin.androidtv.databinding.FragmentSelectServerBinding
 import org.jellyfin.androidtv.ui.SpacingItemDecoration
@@ -97,8 +99,8 @@ class SelectServerFragment : Fragment() {
 		val discoveryServerAdapter = ServerAdapter(
 			serverClickListener = { (_, server) ->
 				startupViewModel.addServer(server.address).onEach { state ->
-					if (state is ConnectedState) {
-						parentFragmentManager.commit {
+					when (state) {
+						is ConnectedState -> parentFragmentManager.commit {
 							replace<ServerFragment>(
 								R.id.content_view,
 								null,
@@ -108,20 +110,41 @@ class SelectServerFragment : Fragment() {
 							)
 							replace<StartupToolbarFragment>(R.id.toolbar_view)
 						}
-					} else {
-						items = items.map {
-							if (it.server.id == server.id) StatefulServer(state, it.server)
-							else it
+
+						is ConnectingState,
+						is UnableToConnectState,
+						is ServerTypeNotSupportedState -> {
+							items = items.map {
+								if (it.server.id == server.id) StatefulServer(state, it.server)
+								else it
+							}
+
+							when (state) {
+								is UnableToConnectState -> Toast.makeText(
+									requireContext(),
+									getString(
+										R.string.server_connection_failed_candidates,
+										state.addressCandidates
+											.map { "${it.key} ${it.value.getSummary(requireContext())}" }
+											.joinToString(prefix = "\n", separator = "\n"),
+									),
+									Toast.LENGTH_LONG,
+								).show()
+
+								is ServerTypeNotSupportedState -> Toast.makeText(
+									requireContext(),
+									getString(
+										R.string.server_type_not_supported,
+										state.serverType.displayName(requireContext()),
+									),
+									Toast.LENGTH_LONG,
+								).show()
+
+								else -> Unit
+							}
 						}
 
-					if (state is UnableToConnectState) {
-							Toast.makeText(requireContext(), getString(
-								R.string.server_connection_failed_candidates,
-								state.addressCandidates
-									.map { "${it.key} ${it.value.getSummary(requireContext())}" }
-									.joinToString(prefix = "\n", separator = "\n")
-							), Toast.LENGTH_LONG).show()
-						}
+						null -> Unit
 					}
 				}.launchIn(lifecycleScope)
 			}
@@ -253,6 +276,10 @@ class SelectServerFragment : Fragment() {
 			when (serverState) {
 				is ConnectingState -> button.isEnabled = false
 				is UnableToConnectState -> {
+					button.isEnabled = true
+					button.text = "${displayText} ⚠"
+				}
+				is ServerTypeNotSupportedState -> {
 					button.isEnabled = true
 					button.text = "${displayText} ⚠"
 				}

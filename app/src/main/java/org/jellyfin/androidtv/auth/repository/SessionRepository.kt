@@ -11,6 +11,8 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.androidtv.auth.model.Server
 import org.jellyfin.androidtv.auth.store.AuthenticationPreferences
 import org.jellyfin.androidtv.auth.store.AuthenticationStore
+import org.jellyfin.androidtv.data.repository.AccessScheduleRepository
+import org.jellyfin.androidtv.data.repository.AccessScheduleStatus
 import org.jellyfin.androidtv.preference.PreferencesRepository
 import org.jellyfin.androidtv.preference.TelemetryPreferences
 import org.jellyfin.androidtv.preference.constant.UserSelectBehavior.DISABLED
@@ -64,6 +66,7 @@ class SessionRepositoryImpl(
 	private val embyApiClient: EmbyApiClient,
 	private val embyCompatInterceptor: EmbyCompatInterceptor,
 	private val embyWebSocketClient: EmbyWebSocketClient,
+	private val accessScheduleRepository: AccessScheduleRepository,
 ) : SessionRepository {
 	private val currentSessionMutex = Mutex()
 	private val _currentSession = MutableStateFlow<Session?>(null)
@@ -139,6 +142,10 @@ class SessionRepositoryImpl(
 			authenticationPreferences[AuthenticationPreferences.lastServerId] = session.serverId.toString()
 			authenticationPreferences[AuthenticationPreferences.lastUserId] = session.userId.toString()
 
+			// Check if server version is supported before mutating shared client state
+			server = serverRepository.getServer(session.serverId, true)
+			if (server == null || !server.isSupported) return false
+
 			// Pre-register interceptor so early API calls (e.g. Branding) are patched
 			val storeServer = authenticationStore.getServer(session.serverId)
 			if (storeServer != null && storeServer.serverType == ServerType.EMBY) {
@@ -146,10 +153,6 @@ class SessionRepositoryImpl(
 				embyCompatInterceptor.setUserId(session.userId.toString())
 				embyCompatInterceptor.registerEmbyServer(storeServer.address, session.userId.toString(), session.accessToken)
 			}
-
-			// Check if server version is supported
-			server = serverRepository.getServer(session.serverId, true)
-			if (server == null || !server.versionSupported) return false
 		}
 
 		val deviceInfo = session?.let { defaultDeviceInfo.forUser(it.userId) } ?: defaultDeviceInfo
@@ -222,12 +225,24 @@ class SessionRepositoryImpl(
 						val user = withContext(Dispatchers.IO) {
 							userApiClient.userApi.getCurrentUser().content
 						}
+						when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(user.policy)) {
+							is AccessScheduleStatus.Denied -> {
+								Timber.i("Session denied: user is outside allowed access schedule")
+								accessScheduleRepository.setLoginDenied(scheduleStatus.nextAccessStart)
+								destroyCurrentSession()
+								return false
+							}
+							AccessScheduleStatus.Allowed -> Unit
+						}
 						preferencesRepository.onSessionChanged()
 						userRepository.setCurrentUser(user)
 						serverRepository.setCurrentServer(server)
 						preferencesRepository.configureJellyseerr()
 					} catch (err: ApiClientException) {
 						Timber.e(err, "Unable to authenticate: bad response when getting user info")
+						if (accessScheduleRepository.isScheduleRelatedApiError(err)) {
+							accessScheduleRepository.setLoginDenied(null)
+						}
 						destroyCurrentSession()
 						return false
 					}

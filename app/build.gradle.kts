@@ -11,6 +11,8 @@ import java.util.jar.JarEntry
 import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 
+val embyEnabled = project.getBooleanProperty(EMBY_ENABLED_PROPERTY)
+
 android {
 	namespace = "org.jellyfin.androidtv"
 	compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -23,6 +25,8 @@ android {
 		applicationId = "media.stonecrusher.androidtv"
 		versionName = project.getVersionName()
 		versionCode = getVersionCode(versionName!!)
+
+		buildConfigField("boolean", "EMBY_ENABLED", embyEnabled.toString())
 
 		// Pre-configured Jellyfin server; auto-connects on first launch when empty.
 		// Set to "" to restore stock server-selection behavior.
