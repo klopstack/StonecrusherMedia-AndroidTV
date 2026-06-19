@@ -72,27 +72,27 @@ fun StillWatchingScreen(
 	val viewModel = koinViewModel<StillWatchingViewModel>()
 
 	val state by viewModel.state.collectAsState()
+	val accessDenied by viewModel.accessDenied.collectAsState()
 
 	LaunchedEffect(itemId) {
 		viewModel.setItemId(itemId)
 	}
 
-	val item by viewModel.item.collectAsState()
-	if (item == null) return
-
-	LaunchedEffect(item?.baseItem) {
-		backgroundService.setBackground(item?.baseItem, BlurContext.DETAILS)
+	LaunchedEffect(state, accessDenied) {
+		when {
+			accessDenied -> navigationRepository.goBack()
+			state == StillWatchingState.NO_DATA -> navigationRepository.goBack()
+			state == StillWatchingState.STILL_WATCHING -> navigationRepository.navigate(Destinations.videoPlayer(0), true)
+			state == StillWatchingState.CLOSE -> navigationRepository.goBack()
+		}
 	}
 
-	LaunchedEffect(state) {
-		when (state) {
-			// Open next item
-			StillWatchingState.STILL_WATCHING -> navigationRepository.navigate(Destinations.videoPlayer(0), true)
-			// Close activity
-			StillWatchingState.CLOSE -> navigationRepository.goBack()
-			// Unknown state
-			else -> Unit
-		}
+	val item by viewModel.item.collectAsState()
+	if (item == null) return
+	val loadedItem = item!!
+
+	LaunchedEffect(loadedItem.baseItem) {
+		backgroundService.setBackground(loadedItem.baseItem, BlurContext.DETAILS)
 	}
 
 	val focusRequester = remember { FocusRequester() }
@@ -101,7 +101,7 @@ fun StillWatchingScreen(
 		AppBackground()
 
 		// Logo
-		item?.logo?.let { logo ->
+		loadedItem.logo?.let { logo ->
 			AsyncImage(
 				modifier = Modifier
 					.align(Alignment.TopStart)
@@ -118,7 +118,7 @@ fun StillWatchingScreen(
 			modifier = Modifier
 				.align(Alignment.BottomCenter)
 				.focusRequester(focusRequester),
-			item = requireNotNull(item),
+			item = loadedItem,
 			onConfirm = { viewModel.stillWatching() },
 			onCancel = { viewModel.close() },
 		)

@@ -1,5 +1,5 @@
 <h1 align="center">Stonecrusher Media for Android TV</h1>
-<h3 align="center">Enhanced Jellyfin & Emby client for Android TV, Nvidia Shield, and Amazon Fire TV devices</h3>
+<h3 align="center">Enhanced Jellyfin client for Android TV, Nvidia Shield, and Amazon Fire TV devices</h3>
 
 ---
 
@@ -12,43 +12,29 @@
 [![github](https://img.shields.io/github/downloads/klopstack/Moonfin-AndroidTV-FireTV/total?logo=github&label=Downloads)](https://github.com/klopstack/Moonfin-AndroidTV-FireTV/releases)
 [![Google Play](https://img.shields.io/badge/Android%20TV-Google%20Play-green?logo=googleplay)](link)
 
-> **Personal Jellyfin/Emby client for the Stonecrusher Media server**
+> **Personal Jellyfin client for the Stonecrusher Media server**
 
-Stonecrusher Media for Android TV is an enhanced Jellyfin client derived from the official Jellyfin Android TV project, optimized for a different viewing experience on Android TV, Nvidia Shield, and Amazon Fire TV devices. It also supports **Emby Server 4.8.0.0+**, allowing you to connect to either Jellyfin or Emby from a single app.
+Stonecrusher Media for Android TV is an enhanced Jellyfin client derived from the official Jellyfin Android TV project, optimized for a different viewing experience on Android TV, Nvidia Shield, and Amazon Fire TV devices.
 
 ## Supported Servers
 
 | Server | Minimum Version | Status |
 |--------|----------------|--------|
 | Jellyfin | 10.8.0+ | Full support |
-| Emby | 4.8.0.0+ | Full support |
+| Emby | 4.8.0.0+ | Disabled by default (optional local builds only) |
 
-See [EMBY_SUPPORT.md](docs/EMBY_SUPPORT.md) for details on Emby-specific behavior and feature differences.
+Emby integration code remains in the repository but is **not included in default builds**.
+Set `moonfin.emby.enabled=true` in `gradle.properties` to compile it locally.
+See [EMBY_SUPPORT.md](docs/EMBY_SUPPORT.md) for details.
 
 ## Features & Enhancements
 
 Stonecrusher Media for Android TV builds on the solid foundation of Jellyfin with targeted improvements for TV viewing:
 
 ### Cross-Server Content Playback
-- **Unified Library Support** - Seamless playback from multiple Jellyfin and Emby servers
+- **Unified Library Support** - Seamless playback from multiple Jellyfin servers
 - Seamless switching between servers for content playback
 - Improved server selection logic
-
-### Emby Server Support
-- **Full Emby Integration** - Connect to Emby Server 4.8.0.0+ alongside Jellyfin
-- Automatic server type detection during setup (no manual configuration needed)
-- WebSocket real-time events with reconnection and jitter-based backoff
-- In-memory caching for library views and display preferences
-- Feature gating hides Jellyfin-only features (SyncPlay, Media Segments, Lyrics) when connected to Emby
-- See [docs/EMBY_SUPPORT.md](docs/EMBY_SUPPORT.md) for the full feature matrix
-
-### Emby Server Support
-- **Full Emby Integration** - Connect to Emby Server 4.8.0.0+ alongside Jellyfin
-- Automatic server type detection during setup (no manual configuration needed)
-- WebSocket real-time events with reconnection and jitter-based backoff
-- In-memory caching for library views and display preferences
-- Feature gating hides Jellyfin-only features (SyncPlay, Media Segments, Lyrics) when connected to Emby
-- See [docs/EMBY_SUPPORT.md](docs/EMBY_SUPPORT.md) for the full feature matrix
 
 ### SyncPlay
 - **Synchronized Group Playback** - Watch together with friends and family in perfect sync

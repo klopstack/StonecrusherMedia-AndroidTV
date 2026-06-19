@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.onEach
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.auth.model.ConnectedState
 import org.jellyfin.androidtv.auth.model.ConnectingState
+import org.jellyfin.androidtv.auth.model.ServerTypeNotSupportedState
 import org.jellyfin.androidtv.auth.model.UnableToConnectState
+import org.jellyfin.androidtv.util.displayName
 import org.jellyfin.androidtv.databinding.FragmentServerAddBinding
 import org.jellyfin.androidtv.ui.startup.ServerAddViewModel
 import org.jellyfin.androidtv.util.getSummary
@@ -86,6 +88,15 @@ class ServerAddFragment : Fragment() {
 						state.addressCandidates
 							.map { "${it.key} - ${it.value.getSummary(requireContext())}" }
 							.joinToString(prefix = "\n", separator = "\n")
+					)
+				}
+
+				is ServerTypeNotSupportedState -> {
+					binding.address.isEnabled = true
+					binding.confirm.isEnabled = true
+					binding.error.text = getString(
+						R.string.server_type_not_supported,
+						state.serverType.displayName(requireContext()),
 					)
 				}
 
