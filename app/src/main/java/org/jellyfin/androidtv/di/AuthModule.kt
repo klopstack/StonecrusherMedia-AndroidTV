@@ -5,6 +5,8 @@ import android.media.AudioManager
 import org.jellyfin.androidtv.BuildConfig
 import org.jellyfin.androidtv.auth.repository.AuthenticationRepository
 import org.jellyfin.androidtv.auth.repository.AuthenticationRepositoryImpl
+import org.jellyfin.androidtv.auth.repository.ProfileProvisioningRepository
+import org.jellyfin.androidtv.auth.repository.ProfileProvisioningRepositoryImpl
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.ServerRepositoryImpl
 import org.jellyfin.androidtv.auth.repository.ServerUserRepository
@@ -47,6 +49,9 @@ val authModule = module {
 	}
 	single<ServerRepository> { ServerRepositoryImpl(get(), get()) }
 	single<ServerUserRepository> { ServerUserRepositoryImpl(get(), get(), get()) }
+	single<ProfileProvisioningRepository> {
+		ProfileProvisioningRepositoryImpl(get(), get(defaultDeviceInfo), get(), get())
+	}
 	single<SessionRepository> {
 		SessionRepositoryImpl(get(), get(), get(), get(), get(defaultDeviceInfo), get(), get(), get(), get(), get(), get(), get())
 	}
