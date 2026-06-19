@@ -94,9 +94,12 @@ class AuthenticationStore(
 		val content = json.encodeToString(root)
 		tempStorePath.writeText(content)
 		if (!tempStorePath.renameTo(storePath)) {
-			Timber.e("Atomic rename failed for authentication store, writing directly")
-			storePath.writeText(content)
-			tempStorePath.delete()
+			storePath.delete()
+			if (!tempStorePath.renameTo(storePath)) {
+				Timber.e("Atomic rename failed for authentication store")
+				tempStorePath.delete()
+				return false
+			}
 		}
 
 		return true
@@ -107,7 +110,7 @@ class AuthenticationStore(
 	}
 
 	fun getUsers(server: UUID): Map<UUID, AuthenticationStoreUser>? = synchronized(lock) {
-		getStore()[server]?.users
+		getStore()[server]?.users?.toMap()
 	}
 
 	fun getServer(serverId: UUID) = synchronized(lock) {
@@ -119,31 +122,35 @@ class AuthenticationStore(
 	}
 
 	fun putServer(id: UUID, server: AuthenticationStoreServer): Boolean = synchronized(lock) {
-		getStore()[id] = server
-		write(getStore())
+		val store = getStore()
+		store[id] = server
+		write(store)
 	}
 
 	fun putUser(server: UUID, userId: UUID, userInfo: AuthenticationStoreUser): Boolean = synchronized(lock) {
-		val serverInfo = getStore()[server] ?: return false
+		val store = getStore()
+		val serverInfo = store[server] ?: return false
 
-		getStore()[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { put(userId, userInfo) })
+		store[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { put(userId, userInfo) })
 
-		write(getStore())
+		write(store)
 	}
 
 	/**
 	 * Removes the server and stored users from the credential store.
 	 */
 	fun removeServer(server: UUID): Boolean = synchronized(lock) {
-		getStore().remove(server)
-		write(getStore())
+		val store = getStore()
+		store.remove(server)
+		write(store)
 	}
 
 	fun removeUser(server: UUID, user: UUID): Boolean = synchronized(lock) {
-		val serverInfo = getStore()[server] ?: return false
+		val store = getStore()
+		val serverInfo = store[server] ?: return false
 
-		getStore()[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { remove(user) })
+		store[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { remove(user) })
 
-		write(getStore())
+		write(store)
 	}
 }
