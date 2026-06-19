@@ -102,19 +102,6 @@ class MainActivity : FragmentActivity() {
 		onBackPressedDispatcher.addCallback(this, backPressedCallback)
 		if (savedInstanceState == null && navigationRepository.canGoBack) navigationRepository.reset(clearHistory = true)
 
-		navigationRepository.currentAction
-			.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-			.onEach { action ->
-				if (action == NavigationAction.Nothing) return@onEach
-
-				handleNavigationAction(action)
-				navigationRepository.consumeAction()
-
-				// Always enable back callback to handle exit confirmation
-				backPressedCallback.isEnabled = true
-				interactionTrackerViewModel.notifyInteraction(canCancel = false, userInitiated = false)
-			}.launchIn(lifecycleScope)
-
 		binding = ActivityMainBinding.inflate(layoutInflater)
 		binding.background.setContent { AppBackground() }
 		binding.settings.setContent { MainActivitySettings() }
@@ -128,6 +115,19 @@ class MainActivity : FragmentActivity() {
 			}
 		}
 		setContentView(binding.root)
+
+		navigationRepository.currentAction
+			.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
+			.onEach { action ->
+				if (action == NavigationAction.Nothing) return@onEach
+
+				handleNavigationAction(action)
+				navigationRepository.consumeAction()
+
+				// Always enable back callback to handle exit confirmation
+				backPressedCallback.isEnabled = true
+				interactionTrackerViewModel.notifyInteraction(canCancel = false, userInitiated = false)
+			}.launchIn(lifecycleScope)
 
 		// Check for updates on app launch (libre builds only)
 		if (org.jellyfin.androidtv.BuildConfig.ENABLE_OTA_UPDATES) {
