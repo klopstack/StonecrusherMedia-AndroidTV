@@ -12,7 +12,8 @@ import org.jellyfin.preference.Preference
  * to a [serverKey] (the camelCase key used by the Moonfin server plugin and web client).
  *
  * Only settings managed by the Moonfin server plugin are listed here.
- * Sensitive keys (passwords, auth tokens) are excluded.
+ * Plaintext secrets (passwords, auth tokens, API keys) are excluded; hashed
+ * credentials (e.g. user PIN hash) may still sync for cross-device parity.
  * [UserPreferences.pluginSyncEnabled] itself is never synced (device-local control).
  */
 object PluginSyncConstants {
@@ -27,7 +28,7 @@ object PluginSyncConstants {
 	 * Snapshot schema version. Increment when server key mappings change to
 	 * force a snapshot reset on the next sync (server-wins fallback).
 	 */
-	const val SNAPSHOT_VERSION = 5
+	const val SNAPSHOT_VERSION = 6
 
 	/** Key stored inside [SNAPSHOT_PREFS_NAME] to track the snapshot schema version. */
 	const val SNAPSHOT_VERSION_KEY = "_snapshot_version"
@@ -84,7 +85,6 @@ object PluginSyncConstants {
 	/** Preference keys from [JellyseerrPreferences] that should be synced. */
 	val JELLYSEERR_PREFERENCES: List<SyncablePreference<*>> = listOf(
 		SyncablePreference(JellyseerrPreferences.enabled, SyncType.BOOLEAN, "jellyseerrEnabled"),
-		SyncablePreference(JellyseerrPreferences.apiKey, SyncType.STRING, "jellyseerrApiKey"),
 		SyncablePreference(JellyseerrPreferences.blockNsfw, SyncType.BOOLEAN, "jellyseerrBlockNsfw"),
 	)
 
