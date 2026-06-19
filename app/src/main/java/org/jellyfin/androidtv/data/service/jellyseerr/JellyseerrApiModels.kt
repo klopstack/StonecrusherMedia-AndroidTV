@@ -489,8 +489,11 @@ class SeasonsSerializer : KSerializer<Seasons> {
 					}
 					try {
 						primitive.int
-					} catch (_: IllegalArgumentException) {
-						throw SerializationException("Expected array of season numbers, got: ${primitive.content}")
+					} catch (e: IllegalArgumentException) {
+						throw SerializationException(
+							"Expected array of season numbers, got: ${primitive.content}",
+							e
+						)
 					}
 				}
 			)
