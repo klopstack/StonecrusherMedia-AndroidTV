@@ -201,6 +201,7 @@ class AuthenticationRepositoryImpl(
 		emit(AuthenticatingState)
 
 		val accessToken = user.accessToken.orEmpty()
+		var prefetchedUserInfo: UserDto? = null
 		if (server.serverType == ServerType.JELLYFIN) {
 			val api = jellyfin.createApi(
 				server.address,
@@ -209,6 +210,7 @@ class AuthenticationRepositoryImpl(
 			)
 			try {
 				val userInfo = api.userApi.getCurrentUser().content
+				prefetchedUserInfo = userInfo
 				when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(userInfo.policy)) {
 					is AccessScheduleStatus.Denied -> {
 						emit(AccessScheduleDeniedLoginState(scheduleStatus.nextAccessStart))
@@ -239,8 +241,7 @@ class AuthenticationRepositoryImpl(
 				val embyUser = embyApiClient.validateCurrentUser()
 				authenticateFinishEmby(server, embyUser, accessToken, user.id)
 			} else {
-				// Update user info
-				val userInfo by userApiClient.userApi.getCurrentUser()
+				val userInfo = prefetchedUserInfo ?: userApiClient.userApi.getCurrentUser().content
 				authenticateFinish(server, userInfo, accessToken)
 			}
 			emit(AuthenticatedState)
