@@ -87,15 +87,16 @@ class ServerFragment : Fragment() {
 				userAdapter.items = users
 
 				binding.users.post {
-					val parentWidth = (binding.users.parent as? View)?.width ?: 0
-					
+					val b = _binding ?: return@post
+					val parentWidth = (b.users.parent as? View)?.width ?: 0
+
 					if (parentWidth > 0 && users.isNotEmpty()) {
-						val density = resources.displayMetrics.density
+						val density = b.root.resources.displayMetrics.density
 						val cardWidthPx = (130 * density).toInt()
 						val itemSpacingPx = (16 * density).toInt()
 						val totalContentWidth = (cardWidthPx * users.size) + (itemSpacingPx * (users.size - 1))
 						val padding = maxOf(0, (parentWidth - totalContentWidth) / 2)
-						binding.users.setPadding(padding, 0, padding, 0)
+						b.users.setPadding(padding, 0, padding, 0)
 					}
 				}
 
