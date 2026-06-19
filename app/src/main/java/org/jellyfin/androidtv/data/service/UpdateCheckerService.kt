@@ -2,7 +2,9 @@ package org.jellyfin.androidtv.data.service
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,6 +38,11 @@ class UpdateCheckerService(private val context: Context) {
 
 		private fun githubReleasesLatestUrl(): String =
 			"https://api.github.com/repos/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPO}/releases/latest"
+
+		internal fun signaturesMatch(installed: List<ByteArray>, downloaded: List<ByteArray>): Boolean =
+			downloaded.any { downloadedCert ->
+				installed.any { installedCert -> installedCert.contentEquals(downloadedCert) }
+			}
 	}
 
 	/** Cached result from the last plugin update check (populated on startup sync). */
@@ -232,6 +239,11 @@ class UpdateCheckerService(private val context: Context) {
 
 				Timber.d("Update downloaded to: ${apkFile.absolutePath}")
 
+				if (!verifyApkSignature(apkFile)) {
+					apkFile.delete()
+					throw SecurityException("Downloaded APK signature does not match the installed app")
+				}
+
 				// Return FileProvider URI
 				FileProvider.getUriForFile(
 					context,
@@ -243,15 +255,69 @@ class UpdateCheckerService(private val context: Context) {
 	}
 
 	/**
-	 * Install the downloaded APK
+	 * Install the downloaded APK after verifying its signature matches the installed app.
+	 * @return true if installation was started, false if signature verification failed
 	 */
-	fun installUpdate(apkUri: Uri) {
+	fun installUpdate(apkUri: Uri): Boolean {
+		val apkFile = File(context.getExternalFilesDir(null), "downloads/update.apk")
+		if (!apkFile.exists() || !verifyApkSignature(apkFile)) {
+			Timber.e("Refusing to install update: APK signature verification failed")
+			return false
+		}
+
 		val intent = Intent(Intent.ACTION_VIEW).apply {
 			setDataAndType(apkUri, "application/vnd.android.package-archive")
 			addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 		}
 		context.startActivity(intent)
+		return true
+	}
+
+	/**
+	 * Verify that the APK signing certificate matches the currently installed app.
+	 */
+	fun verifyApkSignature(apkFile: File): Boolean {
+		val packageManager = context.packageManager
+		val installedCerts = getInstalledSigningCertificates(packageManager)
+		if (installedCerts.isEmpty()) {
+			Timber.e("Unable to read installed app signing certificates")
+			return false
+		}
+
+		val archiveFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			PackageManager.GET_SIGNING_CERTIFICATES
+		} else {
+			@Suppress("DEPRECATION")
+			PackageManager.GET_SIGNATURES
+		}
+
+		val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, archiveFlags)
+			?: return false
+
+		val apkCerts = getSigningCertificates(archiveInfo)
+		return signaturesMatch(installedCerts, apkCerts)
+	}
+
+	private fun getInstalledSigningCertificates(packageManager: PackageManager): List<ByteArray> {
+		val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			PackageManager.GET_SIGNING_CERTIFICATES
+		} else {
+			@Suppress("DEPRECATION")
+			PackageManager.GET_SIGNATURES
+		}
+
+		val packageInfo = packageManager.getPackageInfo(context.packageName, flags)
+		return getSigningCertificates(packageInfo)
+	}
+
+	private fun getSigningCertificates(
+		packageInfo: android.content.pm.PackageInfo,
+	): List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+		packageInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray() }.orEmpty()
+	} else {
+		@Suppress("DEPRECATION")
+		packageInfo.signatures?.map { it.toByteArray() }.orEmpty()
 	}
 
 	/**
