@@ -228,6 +228,7 @@ class StartupActivity : FragmentActivity() {
 					userSettings[UserSettingPreferences.userPinHash] = PinCodeUtil.hashPin(pin)
 					userSettings[UserSettingPreferences.userPinEnabled] = true
 					userSettings[UserSettingPreferences.userPinSetupDeclined] = false
+					Toast.makeText(this, R.string.lbl_pin_code_set, Toast.LENGTH_SHORT).show()
 					syncUserSettingsToPlugin()
 				}
 			}
