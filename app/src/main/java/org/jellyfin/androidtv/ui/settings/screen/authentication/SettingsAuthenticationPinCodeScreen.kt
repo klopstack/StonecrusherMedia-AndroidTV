@@ -152,7 +152,6 @@ fun SettingsAuthenticationPinCodeScreen() {
 							if (pin != null) {
 								val currentHash = userSettingPreferences[UserSettingPreferences.userPinHash]
 								if (PinCodeUtil.hashPin(pin) == currentHash) {
-									PinCodeUtil.recordPinLengthIfUnknown(userSettingPreferences, pin)
 									PinCodeUtil.clearPin(userSettingPreferences)
 									userSettingPreferences[UserSettingPreferences.userPinEnabled] = false
 									Toast.makeText(context, R.string.lbl_pin_code_removed, Toast.LENGTH_SHORT).show()
