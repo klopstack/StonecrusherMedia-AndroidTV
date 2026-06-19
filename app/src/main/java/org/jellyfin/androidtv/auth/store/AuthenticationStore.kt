@@ -30,6 +30,11 @@ class AuthenticationStore(
 	private val storePath
 		get() = context.filesDir.resolve("authentication_store.json")
 
+	private val tempStorePath
+		get() = context.filesDir.resolve("authentication_store.json.tmp")
+
+	private val lock = Any()
+
 	private val json = Json {
 		encodeDefaults = true
 		serializersModule = SerializersModule {
@@ -38,8 +43,11 @@ class AuthenticationStore(
 		ignoreUnknownKeys = true
 	}
 
-	private val store by lazy {
-		load().toMutableMap()
+	@Volatile
+	private var storeCache: MutableMap<UUID, AuthenticationStoreServer>? = null
+
+	private fun getStore(): MutableMap<UUID, AuthenticationStoreServer> = synchronized(lock) {
+		storeCache ?: load().toMutableMap().also { storeCache = it }
 	}
 
 	private fun load(): Map<UUID, AuthenticationStoreServer> {
@@ -83,49 +91,59 @@ class AuthenticationStore(
 			"servers" to json.encodeToJsonElement(servers)
 		))
 
-		storePath.writeText(json.encodeToString(root))
+		val content = json.encodeToString(root)
+		tempStorePath.writeText(content)
+		if (!tempStorePath.renameTo(storePath)) {
+			Timber.e("Atomic rename failed for authentication store, writing directly")
+			storePath.writeText(content)
+			tempStorePath.delete()
+		}
 
 		return true
 	}
 
-	private fun save(): Boolean {
-		return write(store)
+	fun getServers(): Map<UUID, AuthenticationStoreServer> = synchronized(lock) {
+		getStore().toMap()
 	}
 
-	fun getServers(): Map<UUID, AuthenticationStoreServer> = store
-
-	fun getUsers(server: UUID): Map<UUID, AuthenticationStoreUser>? = getServer(server)?.users
-
-	fun getServer(serverId: UUID) = store[serverId]
-
-	fun getUser(serverId: UUID, userId: UUID) = getUsers(serverId)?.get(userId)
-
-	fun putServer(id: UUID, server: AuthenticationStoreServer): Boolean {
-		store[id] = server
-		return save()
+	fun getUsers(server: UUID): Map<UUID, AuthenticationStoreUser>? = synchronized(lock) {
+		getStore()[server]?.users
 	}
 
-	fun putUser(server: UUID, userId: UUID, userInfo: AuthenticationStoreUser): Boolean {
-		val serverInfo = store[server] ?: return false
+	fun getServer(serverId: UUID) = synchronized(lock) {
+		getStore()[serverId]
+	}
 
-		store[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { put(userId, userInfo) })
+	fun getUser(serverId: UUID, userId: UUID) = synchronized(lock) {
+		getStore()[serverId]?.users?.get(userId)
+	}
 
-		return save()
+	fun putServer(id: UUID, server: AuthenticationStoreServer): Boolean = synchronized(lock) {
+		getStore()[id] = server
+		write(getStore())
+	}
+
+	fun putUser(server: UUID, userId: UUID, userInfo: AuthenticationStoreUser): Boolean = synchronized(lock) {
+		val serverInfo = getStore()[server] ?: return false
+
+		getStore()[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { put(userId, userInfo) })
+
+		write(getStore())
 	}
 
 	/**
 	 * Removes the server and stored users from the credential store.
 	 */
-	fun removeServer(server: UUID): Boolean {
-		store.remove(server)
-		return save()
+	fun removeServer(server: UUID): Boolean = synchronized(lock) {
+		getStore().remove(server)
+		write(getStore())
 	}
 
-	fun removeUser(server: UUID, user: UUID): Boolean {
-		val serverInfo = store[server] ?: return false
+	fun removeUser(server: UUID, user: UUID): Boolean = synchronized(lock) {
+		val serverInfo = getStore()[server] ?: return false
 
-		store[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { remove(user) })
+		getStore()[server] = serverInfo.copy(users = serverInfo.users.toMutableMap().apply { remove(user) })
 
-		return save()
+		write(getStore())
 	}
 }
