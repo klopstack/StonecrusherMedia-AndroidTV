@@ -119,9 +119,9 @@ class AuthenticationRepositoryImpl(
 			?.firstOrNull { it.value.name.equals(username, ignoreCase = true) }
 			?.key
 
-	private suspend fun FlowCollector<LoginState>.emitIfScheduleDenied(userId: UUID?): Boolean {
+	private suspend fun FlowCollector<LoginState>.emitIfScheduleDenied(serverId: UUID, userId: UUID?): Boolean {
 		if (userId == null) return false
-		val status = accessScheduleRepository.evaluateCachedPolicyForUser(userId) ?: return false
+		val status = accessScheduleRepository.evaluateCachedPolicyForUser(serverId, userId) ?: return false
 		if (status is AccessScheduleStatus.Denied) {
 			emit(AccessScheduleDeniedLoginState(status.nextAccessStart))
 			return true
@@ -129,18 +129,19 @@ class AuthenticationRepositoryImpl(
 		return false
 	}
 
-	private fun rememberUserPolicy(userId: UUID, policy: UserPolicy?) {
-		accessScheduleRepository.cacheUserPolicy(userId, policy)
+	private fun rememberUserPolicy(serverId: UUID, userId: UUID, policy: UserPolicy?) {
+		accessScheduleRepository.cacheUserPolicy(serverId, userId, policy)
 	}
 
 	private suspend fun emitLoginApiError(
 		err: ApiClientException,
+		serverId: UUID,
 		userId: UUID?,
 		responseBody: String? = null,
 	): LoginState {
-		if (accessScheduleRepository.isScheduleRelatedApiError(err, userId, responseBody)) {
+		if (accessScheduleRepository.isScheduleRelatedApiError(err, serverId, userId, responseBody)) {
 			val nextAccess = userId?.let { id ->
-				(accessScheduleRepository.evaluateCachedPolicyForUser(id) as? AccessScheduleStatus.Denied)?.nextAccessStart
+				(accessScheduleRepository.evaluateCachedPolicyForUser(serverId, id) as? AccessScheduleStatus.Denied)?.nextAccessStart
 			}
 			return AccessScheduleDeniedLoginState(nextAccess)
 		}
@@ -161,7 +162,7 @@ class AuthenticationRepositoryImpl(
 		}
 
 		val userId = findStoredUserId(server.id, username)
-		if (emitIfScheduleDenied(userId)) return@flow
+		if (emitIfScheduleDenied(server.id, userId)) return@flow
 
 		val api = jellyfin.createApi(server.address, deviceInfo = defaultDeviceInfo.forUser(username))
 		val result = try {
@@ -174,7 +175,7 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to sign in as $username")
-			val responseBody = if (err is InvalidStatusException && err.status == 403) {
+			val responseBody = if (err is InvalidStatusException && err.status == 403 && shouldFetch403ResponseBody(server.id, userId)) {
 				jellyfinAuthenticationHelper.readAuthenticateByNameErrorBody(
 					serverAddress = server.address,
 					username = username,
@@ -184,7 +185,7 @@ class AuthenticationRepositoryImpl(
 			} else {
 				null
 			}
-			emit(emitLoginApiError(err, userId, responseBody))
+			emit(emitLoginApiError(err, server.id, userId, responseBody))
 			return@flow
 		}
 
@@ -205,7 +206,7 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to sign in with Quick Connect secret")
-			emit(emitLoginApiError(err, userId = null))
+			emit(emitLoginApiError(err, server.id, userId = null))
 			return@flow
 		}
 
@@ -225,7 +226,7 @@ class AuthenticationRepositoryImpl(
 		)
 
 		authenticateFinish(server, userInfo, accessToken)
-		rememberUserPolicy(userInfo.id, userInfo.policy)
+		rememberUserPolicy(server.id, userInfo.id, userInfo.policy)
 
 		if (server.serverType == ServerType.JELLYFIN) {
 			when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(userInfo.policy)) {
@@ -249,7 +250,7 @@ class AuthenticationRepositoryImpl(
 	private fun authenticateToken(server: Server, user: User) = flow {
 		emit(AuthenticatingState)
 
-		if (emitIfScheduleDenied(user.id)) return@flow
+		if (emitIfScheduleDenied(server.id, user.id)) return@flow
 
 		val accessToken = user.accessToken.orEmpty()
 		var prefetchedUserInfo: UserDto? = null
@@ -262,7 +263,7 @@ class AuthenticationRepositoryImpl(
 			try {
 				val userInfo = api.userApi.getCurrentUser().content
 				prefetchedUserInfo = userInfo
-				rememberUserPolicy(user.id, userInfo.policy)
+				rememberUserPolicy(server.id, user.id, userInfo.policy)
 				when (val scheduleStatus = accessScheduleRepository.evaluatePolicy(userInfo.policy)) {
 					is AccessScheduleStatus.Denied -> {
 						emit(AccessScheduleDeniedLoginState(scheduleStatus.nextAccessStart))
@@ -276,7 +277,7 @@ class AuthenticationRepositoryImpl(
 				return@flow
 			} catch (err: ApiClientException) {
 				Timber.e(err, "Unable to get current user data")
-				emit(emitLoginApiError(err, user.id))
+				emit(emitLoginApiError(err, server.id, user.id))
 				return@flow
 			}
 		}
@@ -299,7 +300,7 @@ class AuthenticationRepositoryImpl(
 			return@flow
 		} catch (err: ApiClientException) {
 			Timber.e(err, "Unable to get current user data")
-			emit(emitLoginApiError(err, user.id))
+			emit(emitLoginApiError(err, server.id, user.id))
 		} catch (err: Exception) {
 			Timber.e(err, "Unable to get current user data")
 			emit(RequireSignInState)
@@ -473,4 +474,9 @@ class AuthenticationRepositoryImpl(
 			index = null
 		)
 	}?.getUrl(jellyfin.createApi(server.address))
+
+	private fun shouldFetch403ResponseBody(serverId: UUID, userId: UUID?): Boolean {
+		if (userId == null) return true
+		return accessScheduleRepository.evaluateCachedPolicyForUser(serverId, userId) == null
+	}
 }

@@ -235,13 +235,13 @@ class SessionRepositoryImpl(
 							AccessScheduleStatus.Allowed -> Unit
 						}
 						userRepository.setCurrentUser(user)
-						accessScheduleRepository.cacheUserPolicy(user.id, user.policy)
+						accessScheduleRepository.cacheUserPolicy(session.serverId, user.id, user.policy)
 						preferencesRepository.onSessionChanged()
 						serverRepository.setCurrentServer(server)
 						preferencesRepository.configureJellyseerr()
 					} catch (err: ApiClientException) {
 						Timber.e(err, "Unable to authenticate: bad response when getting user info")
-						if (accessScheduleRepository.isScheduleRelatedApiError(err, session.userId)) {
+						if (accessScheduleRepository.isScheduleRelatedApiError(err, session.serverId, session.userId)) {
 							accessScheduleRepository.setLoginDenied(null)
 						}
 						destroyCurrentSession()

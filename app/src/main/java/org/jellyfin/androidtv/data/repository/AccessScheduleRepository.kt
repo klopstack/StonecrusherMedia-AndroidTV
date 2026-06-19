@@ -22,7 +22,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.util.AccessScheduleEvaluator
-import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.exception.InvalidStatusException
 import org.jellyfin.sdk.model.api.AccessSchedule
 import org.jellyfin.sdk.model.api.UserPolicy
@@ -31,6 +30,7 @@ import timber.log.Timber
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class AccessScheduleStatus {
@@ -50,10 +50,19 @@ interface AccessScheduleRepository {
 	fun hasPendingLoginDenied(): Boolean
 	fun clearPendingLoginDenied()
 	fun requestBlockedOverlay()
-	fun isScheduleRelatedApiError(error: Throwable, userId: UUID? = null, responseBody: String? = null): Boolean
+	fun isScheduleRelatedApiError(
+		error: Throwable,
+		serverId: UUID? = null,
+		userId: UUID? = null,
+		responseBody: String? = null,
+	): Boolean
 	fun isCurrentlyDenied(): Boolean
-	fun cacheUserPolicy(userId: UUID, policy: UserPolicy?)
-	fun evaluateCachedPolicyForUser(userId: UUID, now: LocalDateTime = LocalDateTime.now()): AccessScheduleStatus?
+	fun cacheUserPolicy(serverId: UUID, userId: UUID, policy: UserPolicy?)
+	fun evaluateCachedPolicyForUser(
+		serverId: UUID,
+		userId: UUID,
+		now: LocalDateTime = LocalDateTime.now(),
+	): AccessScheduleStatus?
 }
 
 @Serializable
@@ -72,7 +81,7 @@ class AccessScheduleRepositoryImpl(
 
 	private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 	private val json = Json { ignoreUnknownKeys = true }
-	private val memoryCache = mutableMapOf<UUID, CachedAccessSchedulePolicy>()
+	private val memoryCache = ConcurrentHashMap<String, CachedAccessSchedulePolicy>()
 	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 	private val _status = MutableStateFlow<AccessScheduleStatus>(AccessScheduleStatus.Allowed)
@@ -141,11 +150,14 @@ class AccessScheduleRepositoryImpl(
 		_forceBlockOverlay.tryEmit(Unit)
 	}
 
-	override fun cacheUserPolicy(userId: UUID, policy: UserPolicy?) {
+	private fun cacheKey(serverId: UUID, userId: UUID) = "$serverId:$userId"
+
+	override fun cacheUserPolicy(serverId: UUID, userId: UUID, policy: UserPolicy?) {
+		val key = cacheKey(serverId, userId)
 		val schedules = policy?.accessSchedules
 		if (policy == null || schedules.isNullOrEmpty()) {
-			memoryCache.remove(userId)
-			prefs.edit().remove(userId.toString()).apply()
+			memoryCache.remove(key)
+			prefs.edit().remove(key).apply()
 			return
 		}
 
@@ -153,20 +165,30 @@ class AccessScheduleRepositoryImpl(
 			isAdministrator = policy.isAdministrator,
 			accessSchedules = schedules,
 		)
-		memoryCache[userId] = cached
+		memoryCache[key] = cached
 		try {
-			prefs.edit().putString(userId.toString(), json.encodeToString(cached)).apply()
+			prefs.edit().putString(key, json.encodeToString(cached)).apply()
 		} catch (e: Exception) {
-			Timber.e(e, "Failed to persist cached access schedule policy for user $userId")
+			Timber.e(e, "Failed to persist cached access schedule policy for user $userId on server $serverId")
 		}
 	}
 
-	override fun evaluateCachedPolicyForUser(userId: UUID, now: LocalDateTime): AccessScheduleStatus? {
-		val cached = memoryCache[userId] ?: loadCachedPolicy(userId) ?: return null
+	override fun evaluateCachedPolicyForUser(
+		serverId: UUID,
+		userId: UUID,
+		now: LocalDateTime,
+	): AccessScheduleStatus? {
+		val key = cacheKey(serverId, userId)
+		val cached = memoryCache[key] ?: loadCachedPolicy(key) ?: return null
 		return evaluatePolicy(cached.toUserPolicy(), now)
 	}
 
-	override fun isScheduleRelatedApiError(error: Throwable, userId: UUID?, responseBody: String?): Boolean {
+	override fun isScheduleRelatedApiError(
+		error: Throwable,
+		serverId: UUID?,
+		userId: UUID?,
+		responseBody: String?,
+	): Boolean {
 		val combinedText = buildString {
 			append(collectThrowableMessages(error))
 			responseBody?.let {
@@ -179,8 +201,8 @@ class AccessScheduleRepositoryImpl(
 		when (error) {
 			is InvalidStatusException -> {
 				if (error.status != 403) return false
-				return userId?.let { evaluateCachedPolicyForUser(it) }
-					.let { it is AccessScheduleStatus.Denied }
+				if (serverId == null || userId == null) return false
+				return evaluateCachedPolicyForUser(serverId, userId) is AccessScheduleStatus.Denied
 			}
 			is EmbyApiException -> {
 				if (error.statusCode != 403) return false
@@ -191,14 +213,14 @@ class AccessScheduleRepositoryImpl(
 		return false
 	}
 
-	private fun loadCachedPolicy(userId: UUID): CachedAccessSchedulePolicy? {
-		val jsonString = prefs.getString(userId.toString(), null) ?: return null
+	private fun loadCachedPolicy(key: String): CachedAccessSchedulePolicy? {
+		val jsonString = prefs.getString(key, null) ?: return null
 		return try {
 			json.decodeFromString<CachedAccessSchedulePolicy>(jsonString).also {
-				memoryCache[userId] = it
+				memoryCache[key] = it
 			}
 		} catch (e: Exception) {
-			Timber.e(e, "Failed to load cached access schedule policy for user $userId")
+			Timber.e(e, "Failed to load cached access schedule policy for key $key")
 			null
 		}
 	}

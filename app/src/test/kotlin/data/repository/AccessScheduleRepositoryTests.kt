@@ -16,6 +16,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 class AccessScheduleRepositoryTests : FunSpec({
+	val serverId = UUID.fromString("00000000-0000-0000-0000-000000000010")
 	val userId = UUID.fromString("00000000-0000-0000-0000-000000000001")
 
 	fun schedule(day: DynamicDayOfWeek, start: Double, end: Double) = AccessSchedule(
@@ -76,10 +77,10 @@ class AccessScheduleRepositoryTests : FunSpec({
 	test("evaluateCachedPolicyForUser uses persisted access schedules") {
 		val repository = createRepository()
 		val deniedPolicy = policy(listOf(schedule(DynamicDayOfWeek.EVERYDAY, 8.0, 20.0)))
-		repository.cacheUserPolicy(userId, deniedPolicy)
+		repository.cacheUserPolicy(serverId, userId, deniedPolicy)
 
 		val deniedAt = LocalDateTime.of(2026, 6, 18, 22, 0)
-		repository.evaluateCachedPolicyForUser(userId, deniedAt) shouldBe AccessScheduleStatus.Denied(
+		repository.evaluateCachedPolicyForUser(serverId, userId, deniedAt) shouldBe AccessScheduleStatus.Denied(
 			LocalDateTime.of(2026, 6, 19, 8, 0),
 		)
 	}
