@@ -179,6 +179,12 @@ class DestinationFragmentView @JvmOverloads constructor(
 	) {
 		var fragment = entry.fragment
 
+		// Recreate if the cached instance was removed from the FragmentManager (e.g. by replace)
+		if (fragment != null && !fragment.isAdded && !fragment.isDetached) {
+			fragment = null
+			entry.fragment = null
+		}
+
 		// Create if there is no existing fragment
 		if (fragment == null) {
 			fragment = fragmentManager.fragmentFactory.instantiate(context.classLoader, entry.name.name).apply {
@@ -244,8 +250,9 @@ class DestinationFragmentView @JvmOverloads constructor(
 			// FragmentManager may have already restored the content fragment; reusing it
 			// avoids stacking a second copy on top of the restored view (ghost UI).
 			val existing = fragmentManager.findFragmentByTag(FRAGMENT_TAG_CONTENT)
-			if (existing != null && history.isNotEmpty()) {
-				history.peek().fragment = existing
+			val top = history.lastOrNull()
+			if (existing != null && top != null && top.name.isInstance(existing)) {
+				top.fragment = existing
 				Timber.d("Reusing restored content fragment ${existing.javaClass.simpleName}")
 			} else if (history.isNotEmpty()) {
 				activateHistoryEntry(history.last(), fragmentManager.beginTransaction())

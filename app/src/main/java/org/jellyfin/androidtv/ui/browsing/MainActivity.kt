@@ -223,15 +223,15 @@ class MainActivity : FragmentActivity() {
 	override fun onPause() {
 		super.onPause()
 
-		// Clear replayed navigation actions so flowWithLifecycle(STARTED) does not
-		// re-apply the last destination when the activity returns from background.
-		navigationRepository.consumeAction()
-
 		interactionTrackerViewModel.activityPaused = true
 	}
 
 	override fun onStop() {
 		super.onStop()
+
+		// Clear replayed navigation actions after the STARTED collector is cancelled,
+		// so flowWithLifecycle(STARTED) does not re-apply the last destination on resume.
+		navigationRepository.consumeAction()
 
 		// Stop theme music when app goes to background
 		themeMusicPlayer.stop()
