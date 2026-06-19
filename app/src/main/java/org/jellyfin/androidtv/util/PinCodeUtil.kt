@@ -22,10 +22,8 @@ object PinCodeUtil {
 			prefs[UserSettingPreferences.userPinHash].isNotEmpty()
 	}
 
-	fun getStoredPinLength(prefs: UserSettingPreferences): Int {
-		val stored = prefs[UserSettingPreferences.userPinLength]
-		return if (isValidPinLength(stored)) stored else 0
-	}
+	fun getStoredPinLength(prefs: UserSettingPreferences): Int =
+		normalizeStoredPinLength(prefs[UserSettingPreferences.userPinLength])
 
 	fun savePin(prefs: UserSettingPreferences, pin: String) {
 		prefs[UserSettingPreferences.userPinHash] = hashPin(pin)
@@ -39,14 +37,19 @@ object PinCodeUtil {
 
 	/** Record PIN length after a successful verify when the stored length is missing or invalid. */
 	fun recordPinLengthIfUnknown(prefs: UserSettingPreferences, pin: String) {
-		if (!isValidPinLength(pin.length)) return
 		val stored = prefs[UserSettingPreferences.userPinLength]
-		if (!isValidPinLength(stored)) {
+		if (shouldUpdateStoredPinLength(stored, pin.length)) {
 			prefs[UserSettingPreferences.userPinLength] = pin.length
 		}
 	}
 
 	internal fun isValidPinLength(length: Int): Boolean = length in MIN_PIN_LENGTH..MAX_PIN_LENGTH
+
+	internal fun normalizeStoredPinLength(stored: Int): Int =
+		if (isValidPinLength(stored)) stored else 0
+
+	internal fun shouldUpdateStoredPinLength(stored: Int, enteredPinLength: Int): Boolean =
+		isValidPinLength(enteredPinLength) && !isValidPinLength(stored)
 
 	/**
 	 * Verify PIN code for a user by showing a dialog
