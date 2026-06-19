@@ -90,7 +90,6 @@ import org.moonfin.server.core.feature.ServerFeature
 import org.jellyfin.androidtv.util.sdk.ApiClientFactory
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.model.api.BaseItemDto
-import org.jellyfin.sdk.model.api.CollectionType
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinActivityViewModel
 import androidx.compose.ui.res.stringResource
@@ -264,7 +263,6 @@ private fun CollapsibleSidebarContent(
 		if (jellyseerrVariant == "seerr") R.drawable.ic_seer else R.drawable.ic_jellyseerr_jellyfish
 	)
 	val syncplayIcon = ImageVector.vectorResource(R.drawable.ic_syncplay)
-	val librariesIcon = ImageVector.vectorResource(R.drawable.ic_clapperboard)
 	val settingsIcon = ImageVector.vectorResource(R.drawable.ic_settings)
 
 	val sidebarWidth by animateDpAsState(
@@ -283,9 +281,6 @@ private fun CollapsibleSidebarContent(
 	val scrollState = rememberScrollState()
 
 	val homeFocusRequester = remember { FocusRequester() }
-
-	var librariesHasFocus by remember { mutableStateOf(false) }
-	var librariesExpanded by remember { mutableStateOf(false) }
 
 	LaunchedEffect(isExpanded) {
 		if (isExpanded) {
@@ -542,74 +537,43 @@ private fun CollapsibleSidebarContent(
 				}
 
 				if (showLibrariesInToolbar) {
-					val librariesFocusRequester = remember { FocusRequester() }
-					Column(
-						modifier = Modifier.onFocusChanged { focusState ->
-							librariesHasFocus = focusState.hasFocus
-						}
-					) {
-						LaunchedEffect(librariesHasFocus) {
-							if (!librariesHasFocus && librariesExpanded) {
-								delay(100)
-								librariesExpanded = false
-							}
-						}
-
-						LaunchedEffect(isExpanded) {
-							if (!isExpanded) librariesExpanded = false
-						}
-
-						SidebarIconItem(
-							icon = librariesIcon,
-							label = stringResource(R.string.pref_libraries),
-							showLabel = isExpanded,
-							isExpanded = isExpanded,
-							onClick = {
-								librariesExpanded = !librariesExpanded
-								if (librariesExpanded) {
-									scope.launch {
-										librariesFocusRequester.requestFocus()
-									}
-								}
-							}
-						)
-
-						if (isExpanded && librariesExpanded) {
-							if (enableMultiServer && aggregatedLibraries.isNotEmpty()) {
-								aggregatedLibraries.forEachIndexed { index, aggLib ->
-									SidebarTextItem(
-										label = aggLib.displayName,
-										modifier = if (index == 0) Modifier.focusRequester(librariesFocusRequester) else Modifier,
-										onClick = {
-											scope.launch {
-												val destination = when (aggLib.library.collectionType) {
-													CollectionType.LIVETV, CollectionType.MUSIC -> {
-														itemLauncher.getUserViewDestination(aggLib.library)
-													}
-													else -> {
-														Destinations.libraryBrowser(aggLib.library, aggLib.server.id, aggLib.userId)
-													}
-												}
-												navigationRepository.navigate(destination)
-											}
-										}
+					if (enableMultiServer && aggregatedLibraries.isNotEmpty()) {
+						partitionAggregatedLibraries(aggregatedLibraries).first.forEach { aggLib ->
+							SidebarIconItem(
+								icon = ImageVector.vectorResource(primaryLibraryIconRes(aggLib.library.collectionType)),
+								label = stringResource(primaryLibraryLabelRes(aggLib.library.collectionType)),
+								showLabel = isExpanded,
+								isExpanded = isExpanded,
+								onClick = {
+									navigateToLibrary(
+										library = aggLib.library,
+										navigationRepository = navigationRepository,
+										itemLauncher = itemLauncher,
+										serverId = aggLib.server.id,
+										userId = aggLib.userId,
 									)
-								}
-							} else {
-								userViews.forEachIndexed { index, library ->
-									SidebarTextItem(
-										label = library.name ?: "",
-										modifier = if (index == 0) Modifier.focusRequester(librariesFocusRequester) else Modifier,
-										onClick = {
-											val destination = itemLauncher.getUserViewDestination(library)
-											navigationRepository.navigate(destination)
-										}
+								},
+							)
+							Spacer(modifier = Modifier.height(2.dp))
+						}
+					} else {
+						partitionUserViews(userViews).first.forEach { library ->
+							SidebarIconItem(
+								icon = ImageVector.vectorResource(primaryLibraryIconRes(library.collectionType)),
+								label = stringResource(primaryLibraryLabelRes(library.collectionType)),
+								showLabel = isExpanded,
+								isExpanded = isExpanded,
+								onClick = {
+									navigateToLibrary(
+										library = library,
+										navigationRepository = navigationRepository,
+										itemLauncher = itemLauncher,
 									)
-								}
-							}
+								},
+							)
+							Spacer(modifier = Modifier.height(2.dp))
 						}
 					}
-					Spacer(modifier = Modifier.height(2.dp))
 				}
 			}
 
