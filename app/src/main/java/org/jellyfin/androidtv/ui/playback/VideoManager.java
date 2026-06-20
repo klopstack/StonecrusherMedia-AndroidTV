@@ -284,11 +284,8 @@ public class VideoManager {
                 return new androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
                         .setEnableFloatOutput(enableFloatOutput)
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                        .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{
-                                new androidx.media3.common.audio.SonicAudioProcessor(),
-                                new androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor(),
-                                mAudioDelayProcessor
-                        })
+                        // DefaultAudioProcessorChain appends Sonic + SilenceSkipping after user processors.
+                        .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{mAudioDelayProcessor})
                         .build();
             }
         };
@@ -297,10 +294,6 @@ public class VideoManager {
 
         DefaultTrackSelector trackSelector = new DefaultTrackSelector(context);
         trackSelector.setParameters(trackSelector.buildUponParameters()
-                .setAudioOffloadPreferences(new TrackSelectionParameters.AudioOffloadPreferences.Builder()
-                        .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
-                        .build()
-                )
                 .setAllowInvalidateSelectionsOnRendererCapabilitiesChange(true)
                 .build()
         );
