@@ -284,8 +284,7 @@ public class VideoManager {
                 return new androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
                         .setEnableFloatOutput(enableFloatOutput)
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                        // DefaultAudioProcessorChain appends Sonic + SilenceSkipping after user processors.
-                        .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{mAudioDelayProcessor})
+                        .setAudioProcessorChain(new AudioDelayProcessorChain(mAudioDelayProcessor))
                         .build();
             }
         };
