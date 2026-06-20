@@ -78,3 +78,33 @@ jobs:
               build/gh-app-publish/*.apk \
               --generate-notes
           fi
+      - name: Update version on master
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git checkout master
+          sed -i "s/^stonecrusher.version=.*/stonecrusher.version=${VERSION}/" gradle.properties
+      # GITHUB_TOKEN cannot bypass branch protection rulesets. Use a GitHub App
+      # installation token instead (secrets RELEASE_APP_ID, RELEASE_APP_PRIVATE_KEY).
+      - name: Create release app token
+        id: release-app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: Commit version update
+        env:
+          GH_TOKEN: ${{ steps.release-app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties
+          if git diff --cached --quiet; then
+            echo "gradle.properties already at version ${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Update stonecrusher.version to ${VERSION} for release ${RELEASE_TAG}"
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin master
